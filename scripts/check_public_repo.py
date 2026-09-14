@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import posixpath
 import re
@@ -22,7 +23,13 @@ PATTERNS = {
     "private key": re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"),
     "personal home path": re.compile(r"/(?:Users|home)/[\w.-]+/|/root/(?!\.cache/)[\w.-]+/"),
 }
-LINK = re.compile(r"(?<!!)\[[^\]\n]+\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
+# Only these visually reviewed illustrations may bypass the text scan. Updating
+# an image requires inspecting it and updating its exact content digest here.
+REVIEWED_IMAGES: dict[str, str] = {
+    "docs/assets/cuda-graphs.webp": "8c4803ad90200a299d0fe9a437ef052add3bb615f06b3f5c4fd0209161c4f366",
+    "docs/assets/expert-placement.webp": "cf44837c2b2865818dfde8883305c6cb3528e0de0bc8270c828b27998042fdd4"
+}
+LINK = re.compile(r"\[[^\]\n]+\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
 
 
 def git(*args: str, **kwargs) -> subprocess.CompletedProcess:
@@ -78,6 +85,14 @@ def main() -> int:
     contents = {}
     for path in paths:
         data = git("show", f":{path}", check=True).stdout
+        if path in REVIEWED_IMAGES:
+            if hashlib.sha256(data).hexdigest() != REVIEWED_IMAGES[path]:
+                errors.append(f"{path}: illustration changed; review it and update its digest")
+            if not (data.startswith(b"RIFF") and data[8:12] == b"WEBP"):
+                errors.append(f"{path}: expected a WebP illustration")
+            if len(data) > 2 * 1024 * 1024:
+                errors.append(f"{path}: illustration exceeds the 2 MiB page-asset limit")
+            continue
         try:
             contents[path] = data.decode("utf-8")
         except UnicodeDecodeError:

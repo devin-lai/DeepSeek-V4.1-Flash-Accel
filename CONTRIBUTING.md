@@ -64,6 +64,11 @@ and syntax errors. GitHub Actions runs the same check on committed files.
 This is a basic publication check, not a comprehensive secret scan or GPU test.
 Use a GitHub noreply email for commits if you want to keep your email private.
 
+README illustrations are stored in `docs/assets/` as compressed WebP files.
+Review image content and metadata before publishing; keep source renders and
+draft prompts in `.local/`. The publication check accepts only the reviewed
+image hashes listed in `scripts/check_public_repo.py` and checks image links.
+
 ## Submit a patch
 
 Describe the observed failure or bottleneck, the resulting behavior, and the
