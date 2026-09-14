@@ -1,0 +1,38 @@
+{
+  "endpoint": "http://127.0.0.1:8000",
+  "model": "deepseek-v4-flash",
+  "input_len": 1024,
+  "output_len": 256,
+  "rows": [
+    {
+      "streams": 1,
+      "failed": 0,
+      "wall_s": 2.2173970739822835,
+      "prompt_tokens": 2298,
+      "out_tok_s": 115.45067999040995,
+      "total_tok_s": 1151.8009245918242,
+      "ttft_ms": 169.94437499670312,
+      "tpot_ms": 8.028156286123776
+    },
+    {
+      "streams": 8,
+      "failed": 0,
+      "wall_s": 3.011843068001326,
+      "prompt_tokens": 18384,
+      "out_tok_s": 679.982307763154,
+      "total_tok_s": 6783.885992293342,
+      "ttft_ms": 359.2553710041102,
+      "tpot_ms": 10.39571197253798
+    },
+    {
+      "streams": 32,
+      "failed": 0,
+      "wall_s": 4.603000564035028,
+      "prompt_tokens": 73510,
+      "out_tok_s": 1779.7086674303653,
+      "total_tok_s": 17749.72626298776,
+      "ttft_ms": 551.5336974931415,
+      "tpot_ms": 15.796205160828928
+    }
+  ]
+}

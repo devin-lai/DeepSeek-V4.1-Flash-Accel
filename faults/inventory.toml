@@ -1,0 +1,889 @@
+# Fault inventory for serving 500 GB-class DeepSeek MoE checkpoints on consumer
+# Blackwell (sm_120).  Every entry was reproduced on 8x RTX 5090 D; the
+# `evidence` field says what was actually measured, and `status` says how far
+# the fix got.  `signature` entries are Python regexes matched against server
+# logs by `tools/faultscan.py`.
+#
+# status:  open | workaround | patch-available | fixed | wontfix
+# severity: blocker | major | minor | perf
+
+schema = 1
+measured_on = "8x RTX 5090 D (sm_120, 32 GiB), 2x Xeon Gold 6530, 503 GiB DDR5, PCIe Gen5 x16, no NVLink"
+stack = "vLLM main @8c1d1c297, FlashInfer 0.6.18.post1, torch 2.13+cu130, driver 595.71.05, CUDA 13.2"
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "FI-001"
+title = "SM120 DSv4 sparse-MLA decode has no kernel for (topk=1152, page_block_size=32)"
+component = "flashinfer"
+severity = "blocker"
+status = "patch-available"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_120", "sm_121"]
+signature = [
+  "SM120 sparse-MLA has no decode kernel for this shape",
+  "decode-dsv4 launch failed \\(unsupported shape or kernel error\\)",
+]
+symptom = """
+The engine loads all 476 GiB of weights, offloads Engram and part of the expert
+bank to host RAM, passes memory profiling, and then dies during CUDA-graph
+capture -- roughly six minutes in -- inside the attention layer:
+
+    ValueError: SM120 sparse-MLA has no decode kernel for this shape:
+    num_tokens=8, num_heads=8, topk=1152, d_qk=512, page_block_size=32,
+    model_type=1, extra_topk=0
+"""
+root_cause = """
+`csrc/sparse_mla_sm120_decode_dsv4.cu` dispatches through a hand-written macro
+list that enumerates 25 compile-time specialisations: `NUM_HEADS` in
+{8,16,32,64,128} x `TOPK` in {128,192,256,512,1024}, with `PAGE_BLOCK_SIZE`
+fixed at 64 by an early `if (mt != ModelType::DSV4 || page_block_size != 64)
+return false;`.
+
+V4.1-Flash asks for neither value.  Its sparse-index buffer is sized for the
+widest layer -- 2 x `index_topk` (512) + the 128-token SWA window = 1152 -- and
+the SWA cache it indexes has 32 tokens per page.  Both are outside the grid, so
+no specialisation matches and there is no fallback.
+
+Inside the kernel neither parameter is structural.  `TOPK` appears three times:
+as the default and the clamp for `topk_len`, and as the row stride of the index
+tensor.  `PAGE_BLOCK_SIZE` appears twice: as the divisor that splits a global
+token index into (page, offset), and in the constant `pbs * IO_STRIDE` offset of
+the scale footer.  Neither sizes shared memory, bounds a `#pragma unroll`, or
+reaches a tensor-core tile shape.  FlashInfer already passes the *extra* cache's
+page block size as a runtime `pbs_extra` and notes in a comment that "the
+8-cycle runtime div is dwarfed by the cp.async.bulk that follows".
+"""
+fix = """
+Make `TOPK` and `PAGE_BLOCK_SIZE` runtime arguments of
+`sparse_mla_decode_dsv4_kernel`, leaving `NUM_HEADS` as the only template
+parameter.  The instantiation grid shrinks from 25 kernels to 5 and every
+`(topk, page_block_size)` becomes dispatchable.
+
+    python upstream/flashinfer/apply_patch.py \\
+        "$(python -c 'import flashinfer,os;print(os.path.dirname(flashinfer.__file__))')"
+
+The patch is reverted with `--revert`.  See FI-002: the prebuilt `.so` must be
+moved aside or the edit has no effect.
+"""
+evidence = """
+`tools/sm120_sparse_mla/probe_sm120.py` reproduces the failure from synthetic
+tensors in seconds -- no checkpoint required -- and validates the patched kernel
+against the PyTorch reference in `tools/sm120_sparse_mla/dsv4_ref.py`.  The
+reference is itself validated on the four shapes FlashInfer already ships.
+"""
+references = ["upstream/flashinfer/apply_patch.py", "upstream/flashinfer/ISSUE.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "FI-002"
+title = "Prebuilt flashinfer-jit-cache wheel silently shadows edits to csrc/"
+component = "flashinfer"
+severity = "major"
+status = "workaround"
+affects = ["any"]
+hardware = ["any"]
+signature = []
+symptom = """
+Edit a kernel under `flashinfer/data/csrc/`, rerun, and the old behaviour
+persists.  Clearing `~/.cache/flashinfer/<version>/<arch>/cached_ops/<module>`
+does not help either, and no rebuild is logged.
+"""
+root_cause = """
+`JitSpec.build_and_load()` resolves to a `.so` shipped by the separate
+`flashinfer-jit-cache` wheel, at
+
+    site-packages/flashinfer_jit_cache/jit_cache/<module>/<module>.so
+
+(906 modules on this install).  That path is consulted before the source tree,
+so edits to `data/csrc` and `data/include` are never compiled.  The failure is
+silent: the stale kernel runs and reports the old behaviour.
+"""
+fix = """
+Move the module's directory out of `flashinfer_jit_cache/jit_cache/` before
+testing a source change, then rerun -- the JIT path compiles from source:
+
+    mv site-packages/flashinfer_jit_cache/jit_cache/sparse_mla_sm120 /tmp/
+
+Restore it to go back to the shipped binary.
+"""
+evidence = """
+Applying FI-001's patch changed the Python-side error to a C++-side
+`ok == false`, proving the Python edit took effect while the CUDA edit did not.
+Deleting the user JIT cache changed nothing; moving the wheel's directory aside
+triggered a real nvcc build.
+"""
+references = []
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-001"
+title = "V4.1 startup validation checks a shape the model never requests"
+component = "vllm"
+severity = "major"
+status = "open"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_120"]
+signature = ["requires a FlashInfer DSV4 sparse MLA decode specialization for"]
+symptom = """
+An 8-GPU launch that cannot possibly serve a token spends ~6 minutes loading
+476 GiB of weights before failing.  The guard that exists to catch exactly this
+passes.
+"""
+root_cause = """
+`DeepseekV4FlashInferMLAAttentionSM120.__init__` calls
+
+    has_flashinfer_sparse_mla_sm120_config(self.padded_heads, required_topk)
+
+with `required_topk = _required_sm120_sparse_topk(...)`, which returns the bare
+`window_size` (128) whenever speculative decoding is off.  `(8, 128)` is in
+FlashInfer's table, so the check passes -- but the runtime call carries the
+*index-buffer* width, 1152, which is not.  The validated shape and the requested
+shape are different quantities.
+"""
+fix = """
+Validate the width of the index buffer that `forward_mqa`/`_forward_prefill`
+will actually pass, not the window size.  That value is known at build time from
+`index_topk`, `compress_ratio` and the SWA window.  Doing so turns a six-minute
+load followed by a graph-capture crash into an immediate, actionable startup
+error.
+"""
+evidence = """
+Read from `vllm/models/deepseek_v4_1/nvidia/flashinfer_sparse.py` lines 83-91
+and 585-592, and confirmed against the failing run: the guard passed and the
+kernel then rejected topk=1152.
+"""
+references = ["upstream/vllm/ISSUE-startup-validation.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-002"
+title = "Pipeline parallelism is unusable for V4.1: input_ids are not forwarded across stages"
+component = "vllm"
+severity = "major"
+status = "open"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["any"]
+signature = ["DeepSeek V4 vision MoE routing requires input_ids"]
+symptom = """
+TP4 x PP2 loads and profiles, then every stage-1 worker raises
+
+    ValueError: DeepSeek V4 vision MoE routing requires input_ids.
+
+Independent of `--language-model-only`.
+"""
+root_cause = """
+V4.1's MoE gate keeps separate expert-selection biases for text and image
+tokens, so the routing function needs `input_ids`.  vLLM's pipeline boundary
+carries hidden states and residuals, not token ids, so stage 1 has no way to
+recover them.
+"""
+fix = """
+Either propagate `input_ids` in the pipeline IntermediateTensors for models that
+declare they need it, or precompute the per-token text/image routing mask on
+stage 0 and carry that instead -- it is one bool per token rather than a vocab
+index, and it is what the gate actually consumes.
+"""
+evidence = """
+Reproduced on TP4 x PP2 at two offload settings (`/data/runs/boot-attempt3`,
+`/data/runs/boot-attempt4`).  Rules out pipeline parallelism as a way to trade
+the 8 GPUs' memory against the expert bank.
+"""
+references = ["upstream/vllm/ISSUE-pp-input-ids.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-003"
+title = "FlashInfer autotuning inside a collective barrier hangs multi-GPU startup"
+component = "vllm"
+severity = "major"
+status = "workaround"
+affects = ["any MoE on sm_120"]
+hardware = ["sm_120"]
+# Not a bare "flashinfer_autotune": the engine echoes
+# `enable_flashinfer_autotune=False` into its config line on every start,
+# including the runs where this is correctly disabled.
+signature = ["Connection closed by peer", "(?<!enable_)flashinfer_autotune"]
+symptom = """
+An 8-GPU launch dies about 40 minutes in with a gloo `Connection closed by
+peer`, after minutes of no output.
+"""
+root_cause = """
+`kernel_warmup` calls `flashinfer_autotune`, which JIT-compiles sm_120 kernels
+while the ranks sit in a collective.  Compilation times differ per rank by
+minutes; a peer exceeds the gloo timeout and drops, taking the run with it.
+"""
+fix = """
+    --kernel-config '{"enable_flashinfer_autotune": false}'
+
+Startup then takes about 3 minutes instead of failing after 40.  A real fix
+would compile outside the collective, or barrier with a timeout scaled to the
+compile.
+"""
+evidence = "Measured: 40 min to failure with autotune on, 3 min to ready with it off."
+references = []
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "PT-001"
+title = "Pinned host allocations round up to a power of two, and it is not configurable"
+component = "pytorch"
+severity = "major"
+status = "wontfix"
+affects = ["any host-offloaded model"]
+hardware = ["any"]
+signature = []
+symptom = """
+Host RAM runs out well before the arithmetic says it should.  For V4.1 the
+Engram tables cost 264 GiB of the 503 GiB box instead of the checkpoint's
+189 GiB, and the 75 GiB difference is what makes the configuration tight.
+"""
+root_cause = """
+The pinned-memory allocator rounds each allocation up to the next power of two.
+Neither `roundup_power2_divisions` in `PYTORCH_CUDA_ALLOC_CONF` nor the same key
+in `PYTORCH_HOST_ALLOC_CONF` changes it.
+
+    requested   consumed
+      8.00 GiB   8.00 GiB
+      3.00 GiB   4.00 GiB
+     11.80 GiB  16.00 GiB
+      0.70 GiB   1.00 GiB
+
+Engram is 16 shards (8 ranks x 2 tables) of 11.5 GiB each; every one rounds to
+16.
+"""
+fix = """
+Plan around it rather than against it.  Size host-resident shards just under a
+power of two, and budget with
+
+    host RAM = sum(roundup_pow2(shard)) + gpus * --cpu-offload-gb
+
+`tools/plan_memory.py` applies this rule.  On a 503 GiB box it leaves an offload
+budget near 14 GiB per rank.
+"""
+evidence = """
+Measured by requesting pinned buffers of known size and reading `Shmem` from
+/proc/meminfo:
+
+    requested   consumed
+     8.00 GiB    8.00 GiB
+     3.00 GiB    4.00 GiB
+    11.80 GiB   16.00 GiB
+     0.70 GiB    1.00 GiB
+
+`roundup_power2_divisions` in `PYTORCH_CUDA_ALLOC_CONF` and in
+`PYTORCH_HOST_ALLOC_CONF` both leave it unchanged.
+
+It bites twice on DeepSeek-V4.1-Flash, and the second one is easy to miss:
+
+- **Engram**: 16 shards (8 ranks x 2 tables) of 11.80 GiB round to 16 each, so
+  189 GiB of tensors occupy 256 GiB; with the projection shards, ~264 GiB.
+- **The expert offload**: the UVA offloader pins one buffer per parameter, and
+  expert matrices are nowhere near powers of two. At EP8 a 12.3 GiB/rank budget
+  is 29 buffers occupying **22.0 GiB -- 1.78x**. Summing the budget rather than
+  the buffers under-predicted total host use by ~100 GiB (352 against the 453
+  GiB of Shmem observed on an 8-rank run). `tools/plan_memory.py` walks the
+  buffers in the order the offloader takes them.
+"""
+references = ["tools/plan_memory.py"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-004"
+title = "--numa-bind OOM-kills an offloaded MoE and buys no bandwidth"
+component = "vllm"
+severity = "major"
+status = "workaround"
+affects = ["any host-offloaded MoE"]
+hardware = ["multi-socket"]
+signature = ["oom-kill:constraint=CONSTRAINT_MEMORY_POLICY"]
+symptom = """
+With Engram plus offloaded experts, one worker is killed by the kernel:
+
+    oom-kill:constraint=CONSTRAINT_MEMORY_POLICY,nodemask=0
+"""
+root_cause = """
+The four workers bound to one socket together need more than that socket's
+251 GiB, and a bound process cannot spill to the other node.
+"""
+fix = """
+Do not pass `--numa-bind` when any weights are host-resident.  There is nothing
+to give up: UVA reads measured 51.3 GB/s node-local and 51.1 GB/s cross-node,
+and end-to-end throughput was 118.0 vs 117.9 tok/s with and without the flag.
+"""
+evidence = """
+UVA micro-benchmark on GPU6/membind1 and GPU7/membind0 (`scripts/bench/uva_bench.py`),
+and the V4-Flash matrix rows `TP8 + EP` vs `TP8 + EP + --numa-bind`.
+"""
+references = ["scripts/bench/uva_bench.py"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-005"
+title = "--block-size is model-specific and silently non-portable"
+component = "vllm"
+severity = "minor"
+status = "open"
+affects = ["DeepSeek-V4.1-Flash", "DeepSeek-V4-Flash"]
+hardware = ["any"]
+signature = ["No common block size for"]
+symptom = """
+A launcher that works for V4.1 fails on the V4-Flash NVFP4 checkpoint with
+
+    No common block size for 128
+"""
+root_cause = """
+`DeepseekV4FlashInferMLASparseBackend.get_supported_kernel_block_sizes()`
+returns `[128]`, so V4.1 requires `--block-size 128`.  The V4-Flash NVFP4
+backend does not accept it.  The flag reads like a tuning knob and is really a
+backend constraint.
+"""
+fix = """
+Leave `--block-size` unset and let vLLM negotiate it, unless a backend demands
+otherwise.  Keep per-model launchers rather than one parameterised script.
+"""
+evidence = "Both failures reproduced while porting the V4.1 launcher to V4-Flash."
+references = []
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-006"
+title = "MXFP4 MoE pads the per-rank intermediate size, inflating expert bytes by up to 1.33x"
+component = "vllm"
+severity = "perf"
+status = "workaround"
+affects = ["any MXFP4 MoE"]
+hardware = ["sm_120"]
+signature = []
+symptom = """
+Expert weights occupy noticeably more GPU memory than the checkpoint implies,
+and the excess grows as tensor parallelism grows.
+"""
+root_cause = """
+The MXFP4 MoE backends pad the per-rank intermediate size to their tile width.
+For V4.1 (`moe_intermediate_size` 2304, 40 layers):
+
+    layout                          intermediate/rank  padded   bytes/rank
+    TP8, Marlin / DeepGEMM / TRTLLM        288          384      44.8 GiB
+    TP8, Triton                            288          320      37.4 GiB
+    TP4, Marlin                            576          640      74.7 GiB
+    EP8, whole experts                    2304         2304      33.6 GiB
+"""
+fix = """
+Use `--enable-expert-parallel`.  Whole experts are never split, so nothing is
+padded, and it is the largest single win measured on this box: +79 % single
+stream, +94 % at 8 streams, +28 % at 32, with prefill unchanged and startup a
+third shorter.
+"""
+evidence = "V4-Flash 8-GPU matrix, rows `TP8 baseline` vs `TP8 + expert parallel`."
+references = ["benchmarks/results/2026-09-13-overnight.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-007"
+title = "Host offload costs decode throughput roughly linearly in offloaded bytes"
+component = "vllm"
+severity = "perf"
+status = "open"
+affects = ["any host-offloaded MoE"]
+hardware = ["PCIe-only"]
+signature = []
+symptom = """
+Every offloaded gigabyte is paid back on every decode step.  On V4-Flash with
+expert parallelism: 6 GiB/rank costs half the decode throughput and two thirds
+of prefill; 12 GiB/rank costs about 70 % and 80 %.
+"""
+root_cause = """
+Offloaded expert weights are read over PCIe on each step.  Zero-copy UVA reads
+reach 51.3 GB/s -- 91 % of plain host-to-device bandwidth -- so the transfer is
+already near the hardware limit; the cost is structural, not an implementation
+defect.
+"""
+fix = """
+Offload the minimum that makes the model fit, and spend effort on shrinking the
+resident bytes instead (expert parallelism first, then expert quantisation).
+`tools/plan_memory.py --tp 8 --ep` reports the smallest offload that fits.
+"""
+evidence = """
+V4-Flash matrix at 0 / 6 / 12 GiB per rank, plus GPT-OSS-120B at 0 / 4 / 10.1 /
+14.1 GiB per rank, which isolates the effect on the same MXFP4 kernels.
+"""
+references = ["benchmarks/results/2026-09-13-overnight.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-008"
+title = "UVAOffloader materialises two host copies per tensor"
+component = "vllm"
+severity = "minor"
+status = "patch-available"
+affects = ["any host-offloaded model"]
+hardware = ["any"]
+signature = []
+symptom = """
+Host-memory peak during weight load is higher and less predictable than the
+steady-state pinned total.
+"""
+root_cause = """
+The stock offloader makes a pageable host copy of each tensor and then a pinned
+copy, so two buffers exist at once.
+"""
+fix = """
+`vllm_dsv41_opt` allocates the pinned buffer once.  Install it with
+`pip install ./vllm_dsv41_opt`.
+
+Do not expect it to rescue a configuration.  A controlled A/B on V4-Flash at
+6 GiB/rank showed no measurable difference in peak `Shmem` (48.4 GiB both ways)
+or throughput (56.0 vs 56.1 tok/s): the transient it removes is anonymous
+memory, not pinned.  It is kept because it makes the peak deterministic.
+"""
+evidence = "V4-Flash matrix rows `6 GiB/rank` vs `6 GiB, stock two-copy offload`."
+references = ["vllm_dsv41_opt/"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-009"
+title = "V4.1 on sm_120 has no working KV block size: its layers need two different ones at once"
+component = "vllm"
+severity = "blocker"
+status = "patch-available"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_100", "sm_120"]
+signature = [
+  "block_kv == 32 or block_kv == 64",
+  "No common block size for",
+  "arch_major == 12 and \\(\\(is_fp4",
+]
+symptom = """
+Every value of `--block-size` fails, each somewhere different:
+
+    --block-size 128 -> Assertion error (csrc/apis/attention.hpp:262):
+                        block_kv == 32 or block_kv == 64
+    --block-size  64 -> Assertion error (csrc/apis/attention.hpp:320):
+                        ... (arch_major == 12 and ((is_fp4 and block_kv in {32,64})
+                                                   or (not is_fp4 and block_kv == 64)))
+
+and, before the backends are patched to offer 64 at all,
+
+    ValueError: No common block size for 64.
+"""
+root_cause = """
+The DSA indexer's states-per-block is `block_size // tokens_per_state`, and
+`tokens_per_state` is the layer's compression ratio. V4.1-Flash uses more than
+one: its `config.json` carries
+
+    compress_ratios = [0, 0,  2 x18 (layers 2-19),  1 x20 (layers 20-39),  0,0,0]
+
+so the CED encoder half compresses two tokens per indexer state and the decoder
+half one. A single `--block-size` therefore produces two different values:
+
+    --block-size 128  ->  ratio-2 layers: 64    ratio-1 layers: 128
+    --block-size  64  ->  ratio-2 layers: 32    ratio-1 layers: 64
+
+DeepGEMM wants 64 from both. Its metadata entry point accepts 32 or 64; its
+kernel entry point, on sm_120 with an FP8 indexer cache, accepts **only** 64.
+So 128 breaks the decoder half and 64 breaks the encoder half, and no value
+exists that works for both.
+
+Compounding it, the DSv4.1 MLA and indexer backends both offered only `[128]`
+off sm_90, so 64 could not even be negotiated until they were patched.
+"""
+fix = """
+Fixed, and not by any of the three routes this entry first proposed. The
+premise they shared -- that every layer must use one block size, so the
+*kernel* block size has to differ from the manager's -- is wrong. vLLM already
+lets each KV cache group carry its own block size, and this model already uses
+four: the SWA cache asks for 32, the compressor for 8, the MLA/indexer group
+takes `--block-size`.
+
+What the DSA indexer kernel constrains is **states** per block, not tokens per
+block. So scale each layer's block size by its own compression ratio and every
+layer stores the same number of states:
+
+    block_size = cache_config.block_size * compress_ratio   (ratio > 1)
+
+With `--block-size 64`: ratio-2 layers get 128-token blocks holding 64 states,
+ratio-1 layers get 64-token blocks holding 64 states. Both satisfy DeepGEMM.
+Because their block sizes now differ, `UniformTypeKVCacheSpecs.is_uniform_type`
+returns False and they land in separate cache groups by themselves -- no change
+to the allocator, and no change in bytes per token, since a ratio-1 layer
+stores twice the states per token either way. It also generalises: upstream's
+own V4 indexer backend declares `[256]` with the comment "C4 indexer pages hold
+64 rows", which is exactly `64 x compress_ratio`.
+
+Route 1 as written -- per-group *kernel* block sizes -- cannot work here.
+`compute_layout_strides` asserts "Padded KV pages do not support kernel block
+splitting", and V4.1's pages are always padded: 576-byte alignment against a
+584-byte MLA state and a 132-byte indexer row.
+
+`upstream/vllm/apply_patch.py` applies the scaling, plus a states-aware filter
+in `prepare_kernel_block_sizes` so an illegal `--block-size` is refused at
+startup with the constraint named, rather than aborting in a C++ assert during
+graph capture six minutes in.
+"""
+evidence = """
+Both block sizes were run to failure on 8x RTX 5090 with the FlashInfer FI-001
+patch applied, and both DeepGEMM call sites were instrumented. At
+`--block-size 64`: `indexer_spec block_size=64 num_states=32 tokens_per_state=2
+kernel_block_size=64`, `mqa_logits kv_cache=(16, 32, 1, 132)
+q_dtype=float8_e4m3fn q_scale=None` -- 32 rows per block, FP8, which the sm_120
+clause rejects. At `--block-size 128` the ratio-2 spec reports
+`num_states=64` and passes, and a ratio-1 spec then fails `:262` with 128. The
+mixed `compress_ratios` come from the checkpoint's own `config.json`.
+"""
+references = ["upstream/vllm/ISSUE-block-size.md", "upstream/vllm/apply_patch.py"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-010"
+title = "nvcc off PATH disables every FlashInfer backend, and is reported as a missing kernel build"
+component = "vllm"
+severity = "major"
+status = "workaround"
+affects = ["any"]
+hardware = ["any"]
+signature = ["Install a FlashInfer build containing"]
+symptom = """
+A launch that worked interactively fails from systemd, cron, or a script:
+
+    RuntimeError: FLASHINFER_MLA_SPARSE_DSV4 on SM120 requires a FlashInfer
+    DSV4 sparse MLA decode specialization for (num_q_heads=8, top_k=128).
+    Install a FlashInfer build containing flashinfer-ai/flashinfer#4380.
+
+The named specialisation is present.  Rebuilding FlashInfer changes nothing.
+"""
+root_cause = """
+`has_flashinfer()` is `find_spec("flashinfer") and (has_flashinfer_cubin() or
+shutil.which("nvcc"))`.  Without the `flashinfer-cubin` package, every
+FlashInfer capability query returns False whenever `nvcc` is not on `PATH` --
+which is the normal state of a non-interactive shell on a box where CUDA lives
+in `/usr/local/cuda`.  The model-level guard then reports the *consequence*
+(no specialisation) rather than the *cause* (no compiler), and points at a
+FlashInfer PR.
+"""
+fix = """
+    export PATH=/usr/local/cuda/bin:$PATH
+
+`deploy/serve.sh` does this automatically and `deploy/preflight.py` checks it.
+Upstream, the two conditions deserve distinct messages: "FlashInfer is
+unavailable in this environment (nvcc not found, flashinfer-cubin not
+installed)" is a ten-second fix; "FlashInfer lacks this kernel" is an afternoon.
+"""
+evidence = """
+Reproduced by launching the identical command from a non-login shell; adding
+`/usr/local/cuda/bin` to PATH made it start.  Confirmed by calling
+`vllm.utils.flashinfer.has_flashinfer()` directly, which returned False while
+`from flashinfer.decode import trtllm_batch_decode_sparse_mla_dsv4` succeeded.
+"""
+references = ["deploy/preflight.py"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "FI-003"
+title = "SM120 sparse-MLA prefill is a second dispatch grid, and V4.1 misses it on both axes"
+component = "flashinfer"
+severity = "blocker"
+status = "patch"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_120", "sm_121"]
+signature = [
+  "Unsupported sparse-MLA prefill configuration",
+  "sparse_mla_sm120\\.cu",
+]
+symptom = """
+With the FI-001 decode kernel available and the block size resolved, the engine
+comes up, answers nothing, and dies on the first prompt long enough to prefill:
+
+    tvm.error.InternalError: Check failed: (ok) is false:
+    Unsupported sparse-MLA prefill configuration: model=DSV4 num_heads=8
+    topk=1152 page_block_size=32 topk_extra=0 extra_page_block_size=0
+"""
+root_cause = """
+`sparse_mla_sm120_prefill.cu` is a separate dispatch from the decode one that
+FI-001 patched, with its own compile-time grid. For DSV4 single-cache it
+instantiates `TOPK` in {128, 192, 256, 512, 1024, 2048} and bakes
+`PAGE_BLOCK_SIZE = 64` into every launch. For the dual-cache variant -- the one
+compressed layers use -- it instantiates **only `topk == 128`**.
+
+V4.1 asks for neither. `topk` is the SWA index row width, which vLLM sets to
+`window_size + max_image_tokens` = 128 + 1024 = 1152 for the vision variant,
+and `page_block_size` is the SWA cache's own block size, which vLLM hard-codes
+to 32.
+
+Inside the kernel `TOPK` is not a work bound. The tile count comes from the
+*runtime* length: `actual_ni = ceil(topk_length / BI)` with `BI = 64`, and the
+loops run `ti < actual_ni`. `TOPK` is only the index row stride, the clamp
+ceiling, and the main/extra split point. So a wider row costs an allocation and
+nothing else.
+"""
+fix = """
+Two vLLM-side changes make the single-cache (pure sliding-window) layers
+dispatch without a kernel rebuild (VL-011, VL-012): round the prefill index
+width up to an instantiated `TOPK` (1152 -> 2048; 1152 is a whole number of
+tiles, so the padding is never read) and ask the SWA cache for 64-token pages.
+
+The dual-cache path -- every compressed layer -- is instantiated at
+`topk == 128` only, so those two alone give text-only serving. The FlashInfer
+edit in `upstream/flashinfer/apply_patch.py` adds the dual-cache
+instantiations at `topk 2048` (FP8 compute mode, as the single-cache grid
+already uses above 256, both extra page sizes): ten more kernels, no
+arithmetic change. With it, `deploy/presets/v41-flash-vision.env` loads the
+vision tower and serves images; every prefill index row is 2048 wide in that
+mode, text requests included.
+"""
+evidence = """
+Read out of `sparse_mla_sm120_prefill.cu` (`dispatch_dsv4_single`,
+`dispatch_dsv4_dual`) and `prefill_kernel.cuh` (lines 95, 109-110, 130, 679,
+693-698, 753). Reproduced on 8x RTX 5090: at width 1152 the error names
+`topk=1152 page_block_size=32`; after padding, `topk=2048 page_block_size=64
+topk_extra=512`, which is the dual-cache clause refusing anything but 128;
+text-only, `topk=128` dispatches and the model answers correctly. With the
+dual-cache instantiation at 2048 (kernels rebuilt, ~1 min): a 224x224 image
+(231 prompt tokens) through `PRESET=v41-flash-vision` is answered "The image
+shows a red circle."; the text probes on the same server stay correct, CUDA
+graphs on.
+"""
+references = ["upstream/flashinfer/ISSUE-prefill.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "FI-004"
+title = "SM120 sparse-MLA kernels gather row 0 of block 0 for every masked index and rely on 0 * row == 0"
+component = "flashinfer"
+severity = "major"
+status = "patch"
+affects = ["DeepSeek-V4.1-Flash", "DeepSeek-V4-Flash"]
+hardware = ["sm_120", "sm_121"]
+# No log line of its own: the failure is silent non-finite output. See VL-013
+# for what it looks like from the API.
+signature = []
+symptom = """
+Any query whose sparse index row contains a `-1` (every partial 64-entry tile)
+produces a non-finite attention output as soon as row 0 of block 0 of the KV
+pool holds a NaN or Inf bit pattern. Queries whose rows fill whole tiles are
+unaffected, which is how it presents: on a 132-token prompt tokens 63, 127 and
+128..131 are finite and the other 126 are not.
+"""
+root_cause = """
+`io_bulk_gather_tile`, `io_gather_scales`, `prefill_kv_entry_base` and the
+decode kernel's `issue_gather` all clamp a masked index with
+`idx = (idx >= 0) ? idx : 0` and copy that row -- row 0 of block 0 -- into
+shared memory like any other entry. The entry's score is then forced to -1e30
+so its softmax weight is exactly zero, and the row is expected to fall out of
+the P.V product. `0 * NaN` is `NaN`. The decode gather zeroes the scale word
+for masked entries but still copies the FP8 payload and the unscaled bf16 RoPE
+tail; the prefill gather zeroes nothing.
+
+Block 0 is vLLM's null block: never handed to a request, and the designated
+sink for padded and dummy work. It is not guaranteed finite, and under
+DeepSeek-V4.1 it is not (VL-013).
+"""
+fix = """
+Gather a row that is known to be finite instead of row 0: the tile's (or
+chunk's) first entry. Index rows are compacted -- valid entries first -- so it
+is a real row whenever the tile is iterated at all; the clamp to 0 stays as a
+last resort. No arithmetic changes for valid entries. Five two-line edits,
+carried by `upstream/flashinfer/apply_patch.py` as edit group FI-004.
+"""
+evidence = """
+Read out of `kv_cache_io.cuh` (lines 82-83 and 108-109), `prefill_kernel.cuh`
+(205, 212, 644, 916) and `decode_dsv4_kernel.cuh` (298-299). Reproduced on
+8x RTX 5090 with DeepSeek-V4.1-Flash: block 0 of the layer-0 SWA cache holds
+two NaN FP8 bytes in row 0 after CUDA-graph capture, and the raw attention
+output of that layer is non-finite for exactly the partial-tile queries.
+"""
+references = ["upstream/flashinfer/ISSUE-null-block.md"]
+
+[[fault]]
+id = "VL-011"
+title = "Text-only serving still widens the SWA prefill index for images that cannot arrive"
+component = "vllm"
+severity = "major"
+status = "patch-available"
+affects = ["DeepSeek-V4.1-Flash", "DeepSeek-V4-Flash"]
+hardware = ["all"]
+signature = [
+  "Unsupported sparse-MLA prefill configuration: model=DSV4 num_heads=\\d+ topk=1152",
+]
+symptom = """
+`--language-model-only` and `--limit-mm-per-prompt '{\"image\": 0}'` both log
+"running in text-only mode", and the SWA prefill index rows are still sized
+`window_size + max_image_tokens`. On sm_120 that is the difference between a
+model that serves and one that cannot dispatch a prefill kernel (FI-003);
+everywhere else it is wasted index-building work and memory on every prefill.
+"""
+root_cause = """
+`DeepseekSparseSWAMetadataBuilder` keys the widening off the *architecture*:
+
+    self.max_image_tokens = (
+        getattr(hf_config, "vision_max_n_token", 0)
+        if getattr(hf_config, "vision_n_layers", 0) > 0
+        else 0
+    )
+
+`vision_n_layers > 0` says the checkpoint has a vision tower. It does not say
+this engine will ever be handed an image. Text-only mode is expressed in the
+multimodal config -- `get_limit_per_prompt("image") == 0`, which
+`language_model_only` also forces -- and the hf_config attribute is untouched
+by either.
+"""
+fix = """
+Gate the widening on whether images can actually arrive, not on whether the
+checkpoint could accept them. `upstream/vllm/apply_patch.py` adds
+`images_can_arrive(vllm_config)` and uses it in both the SWA metadata builder
+and the V4.1 attention layer's JIT warmup key, so the warmup key matches the
+shape the kernel is actually called with.
+"""
+evidence = """
+Measured on 8x RTX 5090: with `--language-model-only`, `ModelConfig.hf_config`
+still reports `vision_n_layers=32 vision_max_n_token=1024` while the registry
+logs "All limits of multimodal modalities supported by the model are set to 0,
+running in text-only mode". Prefill index width stays 1152 until the gate is
+added, then becomes 128 and the dual-cache prefill kernel dispatches.
+"""
+references = ["upstream/vllm/ISSUE-prefill-width.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-012"
+title = "The DeepSeek-V4 SWA cache asks for 32-token pages; every sm_120 sparse-MLA kernel wants 64"
+component = "vllm"
+severity = "blocker"
+status = "patch-available"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_120", "sm_121"]
+signature = [
+  "page_block_size=32",
+  "SM120 sparse-MLA has no decode kernel for this shape",
+]
+symptom = """
+Every sm_120 sparse-MLA entry point reports `page_block_size=32` and refuses
+it: the decode dispatch as `no decode kernel for this shape` (FI-001), the
+prefill dispatch as `Unsupported sparse-MLA prefill configuration` (FI-003).
+"""
+root_cause = """
+`DeepseekV4MLAAttention` constructs its sliding-window cache with a literal
+`block_size=32`. FlashInfer's sm_120 sparse-MLA kernels are written for a
+64-token page throughout: the prefill dispatch bakes `PAGE_BLOCK_SIZE = 64`
+into every launch, and the decode dispatch had `if (page_block_size != 64)
+return false;` before FI-001 made it a runtime argument. The two have simply
+never agreed.
+"""
+fix = """
+Ask for 64. The SWA backend already declares `MultipleOf(32)`, so it is a legal
+request, and a 128-token window then spans two pages instead of four. Applied
+by `upstream/vllm/apply_patch.py`. This alone would have removed half of FI-001
+without any kernel change.
+"""
+evidence = """
+`models/deepseek_v4_1/attention.py` passes `block_size=32`;
+`sparse_mla_sm120_prefill.cu` passes `64` in all 30 of its DSV4 single-cache
+launches (5 head counts x 6 topks).
+Changed to 64 on 8x RTX 5090: the reported `page_block_size` becomes 64 and the
+prefill dispatch's page-block axis stops rejecting the call.
+"""
+references = []
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-013"
+title = "CUDA-graph capture writes V4.1 state into the null block, which the sm_120 sparse-MLA kernels gather for every masked index"
+component = "vllm"
+severity = "major"
+status = "patch"
+affects = ["DeepSeek-V4.1-Flash"]
+hardware = ["sm_120"]
+# Only the escalated forms leave a trace. The primary symptom -- the same token
+# id forever -- is an API response, not a log line, so `faultscan` cannot see it
+# and `deploy/verify.py` is what catches it.
+signature = [
+  "an illegal memory access was encountered",
+  "Out of range float values are not JSON compliant",
+]
+symptom = """
+With CUDA graphs enabled the server comes up, captures cleanly, and answers
+every request with non-finite logits: the same token id forever, an empty
+completion, `logprobs` rejected as "Out of range float values are not JSON
+compliant", and an illegal memory access on longer prompts. The first request
+of a fresh server is already wrong, and it is an eager prefill above every
+captured size, so no graph is replayed for it.
+
+With `--enforce-eager` the same build answers correctly.
+"""
+root_cause = """
+Two halves, one in vLLM and one in FlashInfer, and both have to hold for the
+model to break.
+
+**vLLM writes into block 0.** `capture_model` warms each graph up with dummy
+forwards whose block tables are all zeros and whose slot mapping is
+`PAD_SLOT_ID`. The plain KV inserts honour the pad and write nothing. Three
+V4.1 writers never look at it: the compressed-KV and indexer-K slots come from
+`get_compressed_slot_mapping(...)` over the block table, and the fp32
+compressor state ring's slot is `block_table[req, 0]`. All three resolve to
+block 0 -- the null block, which the scheduler never hands to a request and
+which starts as `torch.zeros`. Hybrid KV groups overlay one buffer, so the fp32
+state ring lands on top of layer 0's sliding-window cache. Read back after
+capture: 8143 non-zero bytes in rows 0..7 of that block, two NaN bytes in the
+FP8 payload of row 0. In eager mode the block is all zeros.
+
+**FlashInfer reads block 0 for every `-1`.** `io_bulk_gather_tile`,
+`io_gather_scales`, `prefill_kv_entry_base` and the decode kernel's gather all
+do `idx = (idx >= 0) ? idx : 0`: a masked index is clamped to row 0 of block 0
+and its row is copied into shared memory. The entry's score is forced to
+-1e30, so its softmax weight is exactly zero -- and `0 * NaN` is `NaN`. Every
+query whose index row ends in a partial 64-entry tile carries at least one
+`-1`; every one of them comes back NaN. On a 132-token prompt the finite
+tokens are exactly 63, 127 and 128..131, the ones whose sliding window fills
+whole tiles.
+
+Bisected on the real checkpoint, one boot per row: eager correct; graphs with
+the memory-profiling capture skipped, corrupt; graphs with `capture_model`
+skipped, correct; graphs with only capture's dummy warm-up forwards and no
+graph recorded, corrupt; graphs with block 0 zeroed after capture, correct.
+The graphs are innocent. The forwards run to warm them up are not.
+
+Neither half exists in DeepSeek-V4 in this shape, which is why V4-Flash is
+correct with graphs on the same build.
+"""
+fix = """
+Both sides are patched here and either alone is enough:
+
+- `upstream/vllm/apply_patch.py` zeroes block 0 of every KV cache view at the
+  end of `capture_model` (the null block is never allocated to a request, so
+  this is exact and free).
+- `upstream/flashinfer/apply_patch.py` (edit group FI-004) makes the kernels
+  gather the tile's first entry for a masked index instead of row 0; index
+  rows are compacted, so that is a real, finite row whenever the tile is
+  iterated at all.
+
+`--enforce-eager` is no longer required. `deploy/presets/v41-flash.env` runs
+with CUDA graphs on.
+"""
+evidence = """
+8x RTX 5090, vLLM main @8c1d1c297, FlashInfer 0.6.18.post1. Per-layer
+finiteness hooks (a throwaway vLLM plugin) on the first post-capture forward:
+embeddings, q, kv, layer-0 weights and RoPE cache finite; raw sparse-MLA
+output non-finite for 126/132 tokens, finite for 63, 127, 128..131. Dump of
+layer-0 SWA block 0 after capture: 8143 non-zero bytes, row 0 with 2 NaN FP8
+bytes; the eager control's block 0 is all zeros. With block 0 zeroed after
+capture: graphs on, 6/6 continuations, "$8" on the word problem, 94 graph
+replays with finite logits. Raw runs in `benchmarks/results/2026-09-14-v41-cudagraphs.md`.
+"""
+references = ["upstream/vllm/ISSUE-v41-cudagraphs.md", "upstream/flashinfer/ISSUE-null-block.md"]

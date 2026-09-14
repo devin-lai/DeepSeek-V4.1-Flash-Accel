@@ -1,0 +1,22 @@
+[Unit]
+Description=DeepSeek V4.1 Flash Accel (vLLM)
+After=network-online.target
+Wants=network-online.target
+StartLimitBurst=3
+StartLimitIntervalSec=3600
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/dsv41-flash.env
+WorkingDirectory=/opt/DeepSeek-V4.1-Flash-Accel
+# The launcher runs preflight using the selected preset and environment.
+ExecStart=/opt/DeepSeek-V4.1-Flash-Accel/deploy/serve.sh
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=30
+OOMScoreAdjust=-500
+LimitMEMLOCK=infinity
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

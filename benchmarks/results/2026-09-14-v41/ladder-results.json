@@ -1,0 +1,92 @@
+[
+ {
+  "name": "eager_off12",
+  "dir": "/data/runs/ladder/eager_off12-111435",
+  "boot_rc": 0,
+  "ok": true,
+  "startup_s": 285,
+  "host_low_gib": 14.9,
+  "reason": null,
+  "verify_rc": 0,
+  "verify_tail": "=== greedy continuations ===\n  [ok] 'The capital of France is' -> ' Paris.'\n  [ok] 'Water freezes at zero degrees' -> ' Celsius. Water boils at 100 degrees'\n  [ok] '1, 2, 3, 4, 5, 6,' -> ' 7, 8, 9'\n  [ok] 'The first three prime numbers are 2, 3, and' -> ' 5. The sum of the first'\n  [ok] 'To be, or not to be, that is the' -> ' question.\\n\\n# \u4f7f\u7528 Python \u5b9e\u73b0'\n  [ok] 'def add(a, b):\\n    return' -> ' a + b\\n'\n  6/6 matched\n\n=== teacher-forced perplexity ===\n  tokens scored: 78   perplexity: 2.98\n\n=== chat ===\n  content: '$8'\n\nVERDICT: SANE\n",
+  "bench_rc": 0,
+  "bench": [
+   {
+    "name": "c1_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 1,
+    "out_tok_s": 5.5,
+    "total_tok_s": 49.3,
+    "ttft_ms": 703.5,
+    "tpot_ms": 183.03
+   },
+   {
+    "name": "c8_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 8,
+    "out_tok_s": 40.9,
+    "total_tok_s": 368.3,
+    "ttft_ms": 2487.4,
+    "tpot_ms": 174.46
+   },
+   {
+    "name": "c32_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 32,
+    "out_tok_s": 72.4,
+    "total_tok_s": 652.0,
+    "ttft_ms": 31371.8,
+    "tpot_ms": 212.75
+   },
+   {
+    "name": "prefill_c2_8k_1",
+    "in": 8192,
+    "out": 1,
+    "conc": 2,
+    "out_tok_s": 0.3,
+    "total_tok_s": 2411.7,
+    "ttft_ms": 6328.5,
+    "tpot_ms": 0.0
+   }
+  ]
+ },
+ {
+  "name": "eager_off8",
+  "dir": "/data/runs/ladder/eager_off8-112525",
+  "boot_rc": 1,
+  "ok": false,
+  "startup_s": 280,
+  "host_low_gib": 79.0,
+  "reason": "ValueError: No available memory for the cache blocks. Try increasing `gpu_memory_utilization` when initializing the engine (this flag also controls CPU memory reservation on the CPU backend, despite its name). Se"
+ },
+ {
+  "name": "eager_off4",
+  "dir": "/data/runs/ladder/eager_off4-113054",
+  "boot_rc": 1,
+  "ok": false,
+  "startup_s": 90,
+  "host_low_gib": 148.2,
+  "reason": "CUDA OOM"
+ },
+ {
+  "name": "graphs_piecewise_off12",
+  "dir": "/data/runs/ladder/graphs_piecewise_off12-113247",
+  "boot_rc": 1,
+  "ok": false,
+  "startup_s": 15,
+  "host_low_gib": 494.9,
+  "reason": "unknown"
+ },
+ {
+  "name": "graphs_full_off12",
+  "dir": "/data/runs/ladder/graphs_full_off12-113313",
+  "boot_rc": 1,
+  "ok": false,
+  "startup_s": 15,
+  "host_low_gib": 494.9,
+  "reason": "unknown"
+ }
+]

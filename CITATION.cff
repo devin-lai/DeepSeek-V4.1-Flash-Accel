@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "Please cite this repository and the exact commit used, alongside DeepSeek and the relevant upstream projects."
+title: "DeepSeek V4.1 Flash Accel"
+type: software
+authors:
+  - name: "DeepSeek-V4.1-Flash-Accel contributors"
+repository-code: "https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel"
+url: "https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel"
+abstract: "Community deployment presets, vLLM and FlashInfer patches, CPU offload tools, and reproducible inference experiments for DeepSeek-V4.1-Flash on NVIDIA RTX 5090 GPUs."
+keywords:
+  - DeepSeek-V4.1-Flash
+  - vLLM
+  - FlashInfer
+  - LLM inference
+  - CPU offload
+  - CUDA graphs

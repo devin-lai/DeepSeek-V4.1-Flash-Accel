@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vllm-dsv41-opt"
+version = "0.1.0"
+description = "vLLM general plugin: layer-range control for UVA CPU offloading (DeepSeek-V4.1-Flash on consumer GPUs)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel"
+Issues = "https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel/issues"
+
+[project.entry-points."vllm.general_plugins"]
+dsv41_opt = "vllm_dsv41_opt:register"
+
+[tool.setuptools]
+packages = ["vllm_dsv41_opt"]

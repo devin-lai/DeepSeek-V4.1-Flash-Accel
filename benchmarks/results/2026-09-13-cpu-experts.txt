@@ -1,0 +1,17 @@
+threads=64  dtype=bf16  hidden=5120 inter=2304 active=6/384
+
+host DRAM read bandwidth (8 GiB sequential): 214.7 GB/s
+gathered expert GEMV, one layer, 1 token(s): 3.85 ms, 424.7 MB touched, 110.2 GB/s effective
+
+whole model, 40 MoE layers, per decode step:
+  CPU experts, all 384 on host (bf16):    154.1 ms  ->    6.5 tok/s ceiling
+  GPU experts @4.25 bpw, 36% offloaded (8 GPUs, 51.3 GB/s PCIe + 1300 GB/s HBM):      4.2 ms  ->  237.9 tok/s ceiling
+
+  ratio: CPU experts are 36.66x the GPU time (slower)
+  if the CPU side also stored 4.25 bpw and stayed bandwidth-bound:   40.9 ms -> 24.4 tok/s, 9.74x the GPU time
+
+crossover: CPU experts win below 2.1 GPUs (110 GB/s of gathered host bandwidth vs 51.3 GB/s per PCIe link).
+This box has 8, so its aggregate PCIe bandwidth (410 GB/s) is the larger number and the experts belong on the GPUs.
+
+Both ceilings ignore attention, the dense path and all overlap; they bound
+only the routed-expert term, which is the term the two designs disagree about.

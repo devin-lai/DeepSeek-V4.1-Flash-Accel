@@ -1,0 +1,162 @@
+[
+ {
+  "name": "place_stock",
+  "env": {},
+  "dir": "/data/runs/ladder2/place_stock-121607",
+  "ok": true,
+  "startup_s": 305,
+  "reason": null,
+  "plugin_line": "INFO 09-14 12:17:07 [__init__.py:140] vllm_dsv41_opt active: single_copy_offload=True, offload_layers=all",
+  "verify_rc": 0,
+  "bench": [
+   {
+    "name": "c1_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 1,
+    "out_tok_s": 5.7,
+    "total_tok_s": 51.6,
+    "ttft_ms": 697.9,
+    "tpot_ms": 165.71
+   },
+   {
+    "name": "c8_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 8,
+    "out_tok_s": 37.3,
+    "total_tok_s": 335.9,
+    "ttft_ms": 2382.6,
+    "tpot_ms": 197.59
+   },
+   {
+    "name": "c32_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 32,
+    "out_tok_s": 73.4,
+    "total_tok_s": 661.0,
+    "ttft_ms": 30381.8,
+    "tpot_ms": 202.65
+   },
+   {
+    "name": "prefill_c2_8k_1",
+    "in": 8192,
+    "out": 1,
+    "conc": 2,
+    "out_tok_s": 0.3,
+    "total_tok_s": 2424.0,
+    "ttft_ms": 6289.2,
+    "tpot_ms": 0.0
+   }
+  ]
+ },
+ {
+  "name": "place_decoder",
+  "env": {
+   "DSV41_OFFLOAD_LAYERS": "20-39"
+  },
+  "dir": "/data/runs/ladder2/place_decoder-122748",
+  "ok": true,
+  "startup_s": 300,
+  "reason": null,
+  "plugin_line": "ingle_copy_offload=True, offload_layers=[20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]",
+  "verify_rc": 0,
+  "bench": [
+   {
+    "name": "c1_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 1,
+    "out_tok_s": 5.4,
+    "total_tok_s": 48.2,
+    "ttft_ms": 686.1,
+    "tpot_ms": 184.57
+   },
+   {
+    "name": "c8_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 8,
+    "out_tok_s": 42.0,
+    "total_tok_s": 377.7,
+    "ttft_ms": 2245.2,
+    "tpot_ms": 177.24
+   },
+   {
+    "name": "c32_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 32,
+    "out_tok_s": 78.8,
+    "total_tok_s": 709.0,
+    "ttft_ms": 27802.4,
+    "tpot_ms": 190.8
+   },
+   {
+    "name": "prefill_c2_8k_1",
+    "in": 8192,
+    "out": 1,
+    "conc": 2,
+    "out_tok_s": 0.3,
+    "total_tok_s": 2654.5,
+    "ttft_ms": 5741.0,
+    "tpot_ms": 0.0
+   }
+  ]
+ },
+ {
+  "name": "place_encoder",
+  "env": {
+   "DSV41_OFFLOAD_LAYERS": "0-19"
+  },
+  "dir": "/data/runs/ladder2/place_encoder-123904",
+  "ok": true,
+  "startup_s": 290,
+  "reason": null,
+  "plugin_line": " active: single_copy_offload=True, offload_layers=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]",
+  "verify_rc": 0,
+  "bench": [
+   {
+    "name": "c1_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 1,
+    "out_tok_s": 5.6,
+    "total_tok_s": 50.8,
+    "ttft_ms": 698.4,
+    "tpot_ms": 174.46
+   },
+   {
+    "name": "c8_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 8,
+    "out_tok_s": 38.3,
+    "total_tok_s": 344.6,
+    "ttft_ms": 2371.2,
+    "tpot_ms": 192.21
+   },
+   {
+    "name": "c32_1k_128",
+    "in": 1024,
+    "out": 128,
+    "conc": 32,
+    "out_tok_s": 73.3,
+    "total_tok_s": 659.4,
+    "ttft_ms": 30037.7,
+    "tpot_ms": 202.3
+   },
+   {
+    "name": "prefill_c2_8k_1",
+    "in": 8192,
+    "out": 1,
+    "conc": 2,
+    "out_tok_s": 0.3,
+    "total_tok_s": 2424.7,
+    "ttft_ms": 6278.7,
+    "tpot_ms": 0.0
+   }
+  ]
+ }
+]

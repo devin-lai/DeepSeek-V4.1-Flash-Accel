@@ -1,0 +1,42 @@
+[
+ {
+  "name": "c1_1k_128",
+  "in": 1024,
+  "out": 128,
+  "conc": 1,
+  "out_tok_s": 33.7,
+  "total_tok_s": 303.0,
+  "ttft_ms": 692.1,
+  "tpot_ms": 24.04
+ },
+ {
+  "name": "c8_1k_128",
+  "in": 1024,
+  "out": 128,
+  "conc": 8,
+  "out_tok_s": 92.4,
+  "total_tok_s": 831.3,
+  "ttft_ms": 2167.1,
+  "tpot_ms": 72.28
+ },
+ {
+  "name": "c32_1k_128",
+  "in": 1024,
+  "out": 128,
+  "conc": 32,
+  "out_tok_s": 115.8,
+  "total_tok_s": 1042.6,
+  "ttft_ms": 19688.4,
+  "tpot_ms": 128.91
+ },
+ {
+  "name": "prefill_c2_8k_1",
+  "in": 8192,
+  "out": 1,
+  "conc": 2,
+  "out_tok_s": 0.3,
+  "total_tok_s": 2650.2,
+  "ttft_ms": 5739.2,
+  "tpot_ms": 0.0
+ }
+]
