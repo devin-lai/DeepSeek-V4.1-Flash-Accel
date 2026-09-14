@@ -4,7 +4,7 @@ This guide explains the reference V4.1 deployment and the measurements behind
 its presets. Other GPU counts and memory sizes need their own validation;
 adding host RAM alone does not establish that a smaller GPU setup will work.
 
-## The constraint
+## The original allocation constraint
 
 | Resource or allocation | GiB |
 | --- | ---: |
@@ -21,7 +21,13 @@ rounding. Host RAM is a capacity constraint; PCIe reads affect speed. GPU
 headroom must also cover caches, capture, workspaces, and repacked weights.
 The [memory planner](../tools/plan_memory.py) includes these costs, and the
 [initial serving report](../benchmarks/results/2026-09-14-v41-first-serve.md#the-offload-floor)
-records why the reference preset uses a 12 GiB/rank offload budget.
+records why the original preset used a 12 GiB/rank offload budget.
+
+The [new text presets](../benchmarks/results/2026-09-14-v41-optimization.md)
+remove large-buffer padding with exact CUDA host registration. They use
+approximately 279 GiB shared host RAM for latency or 264 GiB for throughput,
+with 11 or 9 GiB/rank expert budgets respectively. The table above remains
+the old allocation baseline, not a minimum hardware specification.
 
 ## Options considered
 
@@ -117,35 +123,31 @@ Use the [runbook](../deploy/README.md#local-configuration) to create an ignored
 local preset when changing tuning values. Preset assignments take precedence
 over caller environment variables for these settings.
 
-## Do not use `--numa-bind`
+## Check NUMA capacity and page placement
 
-The obvious advice on a two-socket box is to pin each worker to its GPU's NUMA
-node. Here it is actively harmful. Engram plus the offloaded experts need more
-pinned memory than one node has (251 GiB), so the four workers of a socket run
-that node dry and the kernel OOM-kills one with
-`oom-kill:constraint=CONSTRAINT_MEMORY_POLICY,nodemask=0`. And it buys nothing:
-UVA reads from pinned host memory measured 51.3 GB/s local versus 51.1 GB/s
-remote on this machine.
+Strict binding OOM-killed a worker with the original large pinned allocation.
+The one-GPU UVA measurement (51.3 local / 51.1 remote GB/s) did not expose
+concurrent contention: eight readers reached 260.3 local / 197.4 remote GB/s.
+The exact-pinned serving workers already place their buffers locally without
+strict binding. Measure both per-node capacity and actual placement before
+changing this policy on another machine.
 
-## Memory knobs, in order of leverage
+## Memory settings
 
-1. `--cpu-offload-gb` (per rank): the only knob that makes the model fit, and
-   the floor is sharp. Measured at EP-8 + Marlin: **12 GiB serves, 8 GiB fails
-   with `No available memory for the cache blocks`, 4 GiB OOMs during the weight
-   load.** `tools/plan_memory.py` reports 12 for this configuration, which it
-   gets right only by counting the vision tower as replicated and adding a
-   measured 1.6 GiB/rank for the MoE backend's repacked layout — bytes that are
-   not in the checkpoint headers.
-2. `--gpu-memory-utilization`: the current presets use **0.93**. Changes need
-   memory profiling and successful CUDA-graph capture on the target machine.
-3. `--max-num-seqs`: the presets allow **16** sequences. Higher client
-   concurrency can queue; changing the server cap also changes memory needs.
-4. `--max-model-len`: the serving presets cap context at **32,768 tokens**.
-   Compact KV storage does not validate longer contexts; test memory,
-   correctness, and latency before increasing the cap.
-5. `--language-model-only`: restricts the text preset's input path. Check the
-   actual loaded allocation before deducting vision weights from a memory
-   estimate; the planner accounts for replication when the tower is present.
+| Setting | Latency | Throughput | Previous reference |
+| --- | ---: | ---: | ---: |
+| Expert offload GiB/rank | 11 | 9 | 12 |
+| GPU utilization | 0.95 | 0.95 | 0.93 |
+| Active sequences | 16 | 32 | 16 |
+| Context cap | 32,768 | 32,768 | 32,768 |
+
+All three use text-only serving. Lower offload and wider batches consume
+more GPU headroom; success depends on graph, workspace and KV allocations,
+not just checkpoint bytes. The old 8 GiB cache-allocation failure and 4 GiB
+weight-load OOM remain useful boundaries for that original configuration,
+not proofs that changing other controls cannot improve fit. The new presets
+passed a 32K request and eight concurrent 8K requests. Longer contexts and
+more simultaneous long outputs need their own validation.
 
 ## What "optimal" means here
 

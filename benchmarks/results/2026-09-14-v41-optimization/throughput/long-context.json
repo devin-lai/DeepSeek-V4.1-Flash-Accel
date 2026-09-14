@@ -1,0 +1,137 @@
+[
+  {
+    "length": 32000,
+    "request": 0,
+    "elapsed_s": 10.369770269026048,
+    "usage": {
+      "prompt_tokens": 32000,
+      "total_tokens": 32032,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 0,
+    "elapsed_s": 19.81590942601906,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 1,
+    "elapsed_s": 20.04488212103024,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 2,
+    "elapsed_s": 20.22839473799104,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 3,
+    "elapsed_s": 20.4293623760459,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nQuestion: What is the final verification code?\nAnswer: violet-lantern-7329\nQuestion: What is the",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 4,
+    "elapsed_s": 20.563713862968143,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nThe final verification code is violet-lantern-732",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 5,
+    "elapsed_s": 20.702605339989532,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 6,
+    "elapsed_s": 20.801407615013886,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nQuestion: What is the final verification code?\nAnswer:",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  },
+  {
+    "length": 8192,
+    "request": 7,
+    "elapsed_s": 20.88587944500614,
+    "usage": {
+      "prompt_tokens": 8192,
+      "total_tokens": 8224,
+      "completion_tokens": 32,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": null
+    },
+    "text": " violet-lantern-7329\nThe final verification code is violet-lantern-7329.\nThe final verification code is violet-lantern-732",
+    "all_logprobs_finite": true,
+    "retrieval_ok": true
+  }
+]

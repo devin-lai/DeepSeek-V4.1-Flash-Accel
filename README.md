@@ -1,14 +1,15 @@
 # DeepSeek V4.1 Flash Accel
 
-| **5.6× output throughput** | **84.9% lower token latency** | **9.5% higher 8K prefill** | **8.7% lower 8K TTFT** |
-| :--- | :--- | :--- | :--- |
-| **6.0 → 33.7 tok/s** · one request | **159.52 → 24.04 ms** · median TPOT | **2,424.0 → 2,654.5 total tok/s** | **6,289.2 → 5,741.0 ms** |
-| CUDA graphs vs patched eager | Same CUDA graph comparison | Decoder-only vs stock-order offload | Same offload-placement comparison |
+| **1.8× interactive output** | **55% higher concurrent throughput** | **42% less shared host RAM** |
+| :--- | :--- | :--- |
+| **39.8 → 71.4 tok/s** · interactive c1 | **115.0 → 178.2 tok/s** · random c32 | **453 → 264 GiB** · throughput preset |
+| Static DSpark latency preset | Wider non-speculative batch | Exact pinned weight allocation |
 
-**Measured on 8× RTX 5090 with 503 GiB host RAM.** Short synthetic runs,
-recorded 2026-09-14. The graph comparison uses 1,024 input / 128 output tokens;
-the separate eager-mode placement comparison uses 8,192 input / 1 output token
-at concurrency 2. [Baselines, workload, and evidence ↓](#measured-performance)
+**Measured on 8× RTX 5090, against this project's previous patched CUDA-graph
+preset.** Three trials per workload, same prompts/seeds, unchanged checkpoint
+and quantization. The latency preset uses approximately 279 GiB shared
+RAM and also passed a 384 GiB cgroup limit experiment. These are short tests
+on one 503 GiB host. [Full results, ranges and limits](benchmarks/results/2026-09-14-v41-optimization.md).
 
 **Deploy and accelerate DeepSeek-V4.1-Flash with vLLM on consumer Blackwell GPUs.**
 Deployment presets, CUDA graph and attention fixes, CPU offload tools, and
@@ -31,9 +32,9 @@ with or endorsed by DeepSeek.
 | Resource | Reference deployment |
 | --- | --- |
 | GPU | **8× RTX 5090, 32 GB each**, SM120, PCIe Gen5 ×16, no NVLink |
-| Host RAM | **503 GiB installed**; approximately 452 GiB pinned during the recorded deployment |
+| Host RAM | **503 GiB installed**; approximately **279 GiB shared** with the latency preset or **264 GiB** with throughput. Latency also tested under a 384 GiB cgroup cap. |
 | Checkpoint | Approximately **476 GiB / 510 GB**, plus space for the environment and caches |
-| Placement | Engram on CPU; 12 GiB/rank of decoder experts offloaded; TP8 + expert parallelism |
+| Placement | Engram on CPU; 11 GiB/rank decoder offload for latency, 9 GiB/rank for throughput; TP8 + expert parallelism |
 | Context | **32,768 tokens** in the serving presets; the model's advertised 1M context is untested here |
 | Text / images | Text benchmarked; simple image probe recorded; broader quality evaluation remains open |
 | Stack | vLLM `8c1d1c2974ee42757ee2e93cc898932edfd9d265` + repository patches, FlashInfer `0.6.18.post1`, PyTorch 2.13 + cu130, CUDA 13.2 toolkit, driver 595.71.05 |
@@ -65,8 +66,11 @@ source /data/venvs/vllm-dsv41/bin/activate
 
 # Start text serving in the foreground, listening locally.
 HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
-  PRESET=v41-flash deploy/serve.sh
+  PRESET=v41-flash-latency deploy/serve.sh
 ```
+
+For mainland China, set `PYPI=https://pypi.tuna.tsinghua.edu.cn/simple` during
+setup; the model downloader already supports ModelScope and hf-mirror.
 
 Once the server reports ready, open a second shell in the repository root:
 
@@ -84,6 +88,9 @@ curl -sS http://127.0.0.1:8000/v1/completions \
 Inspect the probe output and saved JSON before benchmarking. These are sanity
 checks; a passing verdict alone does not establish model quality.
 
+Use `PRESET=v41-flash-throughput` for concurrent batch work; its wider batch
+increases aggregate throughput while trading per-request token latency. The
+previous `v41-flash` preset remains available as a reproduction baseline.
 For image inputs, stop the text server and restart with
 `PRESET=v41-flash-vision`. Download and first compilation add time; the recorded
 eager startup took about 285 seconds with a warm OS page cache. Shard checks
@@ -91,7 +98,7 @@ validate file structure; add `--sha256` for comparison with ModelScope hashes.
 
 [Custom paths, presets, and systemd](deploy/README.md) ·
 [Patch inspection and rollback](upstream/README.md) ·
-[18 known failure modes](docs/05-fault-inventory.md)
+[19 known failure modes](docs/05-fault-inventory.md)
 
 ## How the optimizations work
 
@@ -133,7 +140,48 @@ Two further changes help the checkpoint fit:
 The illustrations explain the mechanisms; the tables and linked result files
 are the source for quantitative claims.
 
+### 3. Remove host padding and tune the decode batch
+
+The new exact allocator replaces power-of-two rounding with page-rounded
+CUDA host registration for persistent weights. At the same expert budget,
+shared host memory falls from about 453 to 289 GiB. The latency preset also
+uses static DSpark-5 and smaller graph captures, keeping more experts on GPU
+and reaching about 279 GiB shared RAM. The throughput preset retains still
+more experts on GPU and permits 32 active sequences, using about 264 GiB.
+
+The checkpoint and its MXFP4 quantization stay unchanged. Adaptive DSpark
+verification remains unsupported by this SM120 indexer backend; the preset
+uses static verification. [Allocator implementation and GPU tests](vllm_dsv41_opt/README.md) ·
+[Measurements and tradeoffs](benchmarks/results/2026-09-14-v41-optimization.md).
+
 ## Measured performance
+
+**New text presets, three-trial means.** Output tok/s unless marked total.
+The control is the previous `v41-flash` graph-enabled preset; all runs use
+the same six-case harness. See the report for individual trials and latencies.
+
+| Workload | Previous preset | Latency preset | Throughput preset |
+| --- | ---: | ---: | ---: |
+| Random 1K / 128, c1 | 33.6 | 65.0 | 39.5 |
+| Random 1K / 128, c8 | 91.0 | 114.4 | 113.2 |
+| Random 1K / 128, c32 | 115.0 | 135.0 | 178.2 |
+| 8K prefill, c2 (total tok/s) | 2429.8 | 2587.5 | 3008.4 |
+| Interactive / 256, c1 | 39.8 | 71.4 | 46.0 |
+| Interactive / 256, c8 | 110.7 | 155.9 | 139.7 |
+
+Choose `v41-flash-latency` for interactive generation and
+`v41-flash-throughput` for concurrent batch work. Wider batching reduces
+queueing but increases per-request token latency at c32. Both passed one
+32K and eight concurrent 8K cache probes; full task-quality parity and
+production capacity remain unmeasured.
+
+[Repeated trials and raw request timings](benchmarks/results/2026-09-14-v41-optimization.md) ·
+[Reproduction commands](benchmarks/README.md#repeated-optimization-measurements).
+
+### Earlier graph and offload-placement experiments
+
+These were recorded separately with earlier harness defaults. They are not
+the numerical control for the new preset comparison above.
 
 **DeepSeek-V4.1-Flash, text only, 8× RTX 5090.** TP8 + expert parallelism,
 Marlin, CPU Engram, and 12 GiB/rank of decoder expert offload.
@@ -166,14 +214,16 @@ expert-offload layers:
 [Saved placement results](benchmarks/results/2026-09-14-v41/ladder2-offload-placement.json).
 These gains must not be multiplied with the CUDA graph speedup.
 
-**Evidence limits:** one machine and short synthetic workloads; repeated-trial
-uncertainty and production workloads remain untested. The graph-enabled run
+**Evidence limits for the earlier comparison:** one machine, short synthetic
+workloads and no repeated trials. The newer preset comparison above reports
+three trials per workload; production workloads remain untested. The graph-enabled run
 matched 5/6 greedy continuation probes, scored perplexity 2.662 on one short
 English passage, and answered the word problem with `$8`
 ([saved sanity probes](benchmarks/results/2026-09-14-v41/kit-v41-graphs-verify.json)).
 The missed continuation was plausible but lacked the expected word. Outputs
 have varied across identical runs; these checks do not establish quality parity.
-Vision and long-context evaluation remain open. Earlier V4-Flash results are
+Broader vision and long-context quality evaluation remain open; the new text
+presets have separate 32K/8×8K cache and finite-output sanity checks. Earlier V4-Flash results are
 kept in a [separate tuning matrix](docs/07-engineering-report.md#5-the-v4-flash-tuning-matrix).
 
 ## Research and contributions
@@ -187,7 +237,7 @@ Issues and pull requests are welcome in English or Chinese.
 | Deployment, memory fit, or a failed launch | [Runbook](deploy/README.md), [memory planner](tools/plan_memory.py), [log scanner](tools/faultscan.py) |
 | Sparse attention or cache correctness | [Reference and shape probes](tools/sm120_sparse_mla/README.md), [tiny model](tools/tiny/README.md), [patch reports](upstream/README.md) |
 | Quantization and offload research | [Expert-level study](docs/06-expert-quantization.md); smaller formats remain experimental |
-| Vision, longer context, DSpark, or other GPUs | [Benchmark protocol](benchmarks/README.md) and [contribution guide](CONTRIBUTING.md) |
+| Vision quality, adaptive DSpark, or other GPUs | [Benchmark protocol](benchmarks/README.md) and [contribution guide](CONTRIBUTING.md) |
 
 Include exact revisions, hardware, flags, workload, baseline, and output-quality
 checks with performance claims. For research citations, use [CITATION.cff](CITATION.cff)

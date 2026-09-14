@@ -1,0 +1,49 @@
+{
+  "date": "2026-09-14",
+  "result_timestamp_timezone": "UTC+08:00",
+  "vllm_source_commit": "8c1d1c2974ee42757ee2e93cc898932edfd9d265",
+  "vllm_patches": "repository upstream/vllm/apply_patch.py",
+  "flashinfer_patches": "repository upstream/flashinfer/apply_patch.py",
+  "packages": {
+    "vllm": "0.1.1.dev7+g8c1d1c297",
+    "torch": "2.13.0",
+    "flashinfer-python": "0.6.18.post1",
+    "vllm-dsv41-opt": "0.2.0",
+    "triton": "3.7.1",
+    "pandas": "3.0.5"
+  },
+  "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+  "checkpoint_revision": "existing download; commit not independently recorded",
+  "model_file_sha256": {
+    "config.json": "8be45ce0476004a3f529fd896115a4a2e800a129ad2d3ec05b16050f52e21879",
+    "model.safetensors.index.json": "74b0686a3d2891980d5e303251b075a3bccae2c2ff650747db2620a649b98fa8"
+  },
+  "gpu": [
+    "0, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "1, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "2, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "3, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "4, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "5, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "6, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB",
+    "7, NVIDIA GeForce RTX 5090 D, 595.71.05, 32607 MiB"
+  ],
+  "cpu": "2x Intel Xeon Gold 6530, 64 physical cores / 128 threads",
+  "numa_gpu_nodes": [
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1
+  ],
+  "ram_bytes": 540133654528,
+  "swap_bytes": 0,
+  "nvlink": false,
+  "installed_plugin_sha256": {
+    "__init__.py": "7997af22b45acdcfe6b6b922283d298867abb16dcb4d27bcfa6b04ec5c114a31",
+    "pinned.py": "031e26112af100d37a37917efcf0ac5b24052bad51d0d8cf8506b4628b446cf9"
+  }
+}

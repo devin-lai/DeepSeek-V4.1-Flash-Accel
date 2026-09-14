@@ -1,33 +1,14 @@
-"""vLLM general plugin for serving huge MoE checkpoints on small GPUs.
+"""Runtime weight-offload optimizations for DeepSeek-V4.1-Flash.
 
-Two independent fixes to vLLM's UVA weight offloader, both needed to fit
-DeepSeek-V4.1-Flash (552B backbone + 196B Engram) on 8x 32 GB consumer cards.
-Neither patches vLLM itself: the package registers under the
-``vllm.general_plugins`` entry-point group and is picked up by every vLLM
-process automatically.
+Registered through vllm.general_plugins in every vLLM process:
 
-1. **Single-copy offload (always on).** Stock ``UVAOffloader`` does::
+* DSV41_SINGLE_COPY=1 (default): allocate pinned host weight buffers directly.
+* DSV41_OFFLOAD_LAYERS=20-39: keep CED encoder experts resident during prefill.
+* DSV41_EXACT_PINNED=1 (opt-in): replace power-of-two host allocation rounding
+  with page-rounded CUDA registration for persistent weights, including Engram.
 
-       cpu_data = p.data.to(device="cpu")   # pageable host copy
-       cpu_data = cpu_data.pin_memory()     # second, pinned host copy
-
-   Both buffers are alive at once and PyTorch's host allocator caches the
-   pageable one, so a budget of N GiB per rank costs up to 2N GiB of host RAM.
-   On this box, ``--cpu-offload-gb 24`` at TP8 drove ``Shmem`` past 460 GiB of
-   503 GiB and the run died before the engine came up. This plugin allocates
-   the pinned buffer directly and copies into it once: N GiB of budget costs
-   N GiB of host RAM.
-
-2. **Layer-range restriction (opt-in via ``DSV41_OFFLOAD_LAYERS``).** vLLM
-   walks the decoder layers in order and offloads until the budget is spent,
-   so the *first* layers always go to host memory. DeepSeek-V4.1-Flash is a
-   causal encoder-decoder: prefill executes only layers 0-19, while layers
-   20-39 run during decode (plus a 128-token replay). Offloading the decoder
-   half costs the same GPU memory but keeps prefill entirely on-device.
-   Set ``DSV41_OFFLOAD_LAYERS=20-39`` (ranges and lists both work, e.g.
-   ``20-29,35-39``). Unset means stock ordering.
-
-Set ``DSV41_SINGLE_COPY=0`` to disable fix 1 (for A/B measurement).
+No installed vLLM source files are changed. The hooks require the recorded
+vLLM version; see the package README for supported paths and GPU tests.
 """
 
 from __future__ import annotations
@@ -78,7 +59,21 @@ def register() -> None:
 
     spec = os.environ.get("DSV41_OFFLOAD_LAYERS", "").strip()
     allowed = parse_layer_set(spec) if spec else None
-    single_copy = os.environ.get("DSV41_SINGLE_COPY", "1") not in ("0", "false", "False")
+    single_copy = os.environ.get("DSV41_SINGLE_COPY", "1") not in (
+        "0",
+        "false",
+        "False",
+    )
+    exact_pinned = os.environ.get("DSV41_EXACT_PINNED", "0") == "1"
+    weight_torch = torch
+    if exact_pinned:
+        if not single_copy:
+            raise ValueError("DSV41_EXACT_PINNED=1 requires DSV41_SINGLE_COPY=1")
+        from .pinned import WeightTorchProxy, install_weight_allocator
+
+        install_weight_allocator()
+        weight_torch = WeightTorchProxy()
+        logger.info("Exact pinned weight allocation enabled (Engram and UVA experts)")
     if allowed is None and not single_copy:
         return
 
@@ -97,15 +92,15 @@ def register() -> None:
             ):
                 continue
             # One allocation, pinned up front; copy straight from device.
-            cpu_data = torch.empty(
-                p.data.shape, dtype=p.data.dtype, device="cpu", pin_memory=self.pin_memory
+            cpu_data = weight_torch.empty(
+                p.data.shape,
+                dtype=p.data.dtype,
+                device="cpu",
+                pin_memory=self.pin_memory,
             )
             cpu_data.copy_(p.data)
-            if self.uva_offloading:
-                p.data = get_accelerator_view_from_cpu_tensor(cpu_data)
-                p._vllm_is_uva_offloaded = True
-            else:
-                p.data = cpu_data
+            p.data = get_accelerator_view_from_cpu_tensor(cpu_data)
+            p._vllm_is_uva_offloaded = True
             self.cpu_offload_bytes += cpu_data.numel() * cpu_data.element_size()
             did = True
         return did
@@ -116,7 +111,9 @@ def register() -> None:
             # Modules that are not decoder layers (towers, heads) keep stock behaviour.
             if idx is not None and idx not in allowed:
                 return module
-        if not single_copy:
+        if not single_copy or not self.uva_offloading:
+            # Stock must install its functional_call wrapper before the budget
+            # is spent. Moving weights first would leave an unwrapped CPU layer.
             return original(self, module, prefix)
 
         if (params := next(module.parameters(), None)) is None:
@@ -128,16 +125,12 @@ def register() -> None:
         if prefix:
             prefix = prefix if prefix.endswith(".") else f"{prefix}."
 
-        did = _offload_params_single_copy(self, module, prefix)
-        if did and not self.uva_offloading:
-            # Without UVA, stock vLLM installs a functional_call wrapper that
-            # moves the module onto the device for each forward. Fall back to
-            # it rather than reimplementing that path.
-            return original(self, module, prefix)
+        _offload_params_single_copy(self, module, prefix)
         return module
 
     uva.UVAOffloader._maybe_offload_to_cpu = _maybe_offload_to_cpu
     logger.info(
         "vllm_dsv41_opt active: single_copy_offload=%s, offload_layers=%s",
-        single_copy, sorted(allowed) if allowed is not None else "all",
+        single_copy,
+        sorted(allowed) if allowed is not None else "all",
     )

@@ -1,0 +1,22 @@
+{
+  "memory": {
+    "total": 540133654528,
+    "available": 197630050304,
+    "percent": 63.4,
+    "used": 342503604224,
+    "free": 113549725696,
+    "active": 10853855232,
+    "inactive": 402799841280,
+    "buffers": 87097344,
+    "cached": 388060127232,
+    "shared": 299208851456,
+    "slab": 4153786368
+  },
+  "cgroup": {
+    "memory.max": "412316860416\n",
+    "memory.current": "412231233536\n",
+    "memory.events": "low 0\nhigh 0\nmax 1663068\noom 0\noom_kill 0\n",
+    "memory.stat": "anon 27457421312\nfile 382149402624\nkernel_stack 13598720\npagetables 685666304\npercpu 0\nsock 151552\nshmem 298087137280\nfile_mapped 298120708096\nfile_dirty 4096\nfile_writeback 0\nswapcached 0\nanon_thp 0\nfile_thp 0\nshmem_thp 0\ninactive_anon 325543780352\nactive_anon 765952\ninactive_file 75200073728\nactive_file 8861962240\nunevictable 0\nslab_reclaimable 1869455656\nslab_unreclaimable 19041752\nslab 1888497408\nworkingset_refault_anon 0\nworkingset_refault_file 5612744\nworkingset_activate_anon 0\nworkingset_activate_file 24112\nworkingset_restore_anon 0\nworkingset_restore_file 11667\nworkingset_nodereclaim 0\npgfault 143501086\npgmajfault 1194140\npgrefill 464107\npgscan 219798177\npgsteal 109446599\npgactivate 2603673\npgdeactivate 464107\npglazyfree 0\npglazyfreed 0\nthp_fault_alloc 0\nthp_collapse_alloc 0\n"
+  },
+  "note": "Snapshot after startup. Kernel does not expose memory.peak; minimum available and peak charge are unavailable."
+}

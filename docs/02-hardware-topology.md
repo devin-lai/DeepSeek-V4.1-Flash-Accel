@@ -31,12 +31,13 @@ for every GPU pair; there is no `NV#` anywhere.
 | GPU 0,1,4,5 (split) | 67.4 µs | 37.8 GB/s |
 | GPU 0-7 | 80.5 µs | 40.0 GB/s |
 
-Initial bulk-copy measurements showed about 56 GB/s locally and 33 GB/s
-across NUMA nodes. Later measurements of the actual UVA expert-read workload
-reached 51.3 GB/s locally and 51.1 GB/s remotely. The serving presets leave
-`--numa-bind` off: binding measured no benefit for that workload and could
-OOM-kill workers with host-resident weights. See the
-[UVA measurements](07-engineering-report.md#host-memory-access-the-foundation-of-every-offload-decision).
+A single-GPU UVA read measured 51.3 GB/s locally and 51.1 GB/s remotely.
+That does not predict eight-GPU contention: the concurrent read benchmark
+measured **260.3 GB/s aggregate local vs 197.4 GB/s remote**. The exact-pinned
+serving workers already place almost all host buffers on their GPU's local
+node. Presets leave strict `--numa-bind` off because the original rounded
+allocations could exhaust one socket; this is not a claim that NUMA is free.
+See the [concurrent experiment](../benchmarks/results/2026-09-14-v41-optimization.md).
 
 ## What this means for a 552B MoE
 
@@ -47,7 +48,8 @@ OOM-kill workers with host-resident weights. See the
    is ≈ 8 ms per step — noticeable, not fatal. Large-message bandwidth
    (40 GB/s) only matters for prefill.
 3. **PCIe is the budget for offloaded experts.** The UVA expert-read
-   benchmark reached approximately 51 GB/s per GPU on this machine. Each
+   benchmark reached approximately 51 GB/s for one GPU, or 32.5 GB/s per GPU
+   with all eight reading local memory simultaneously. Each
    decode token touches 6 experts × 40 layers ≈ 4.3 GB of MXFP4 expert bytes
    across all ranks; the fraction that is offloaded is what you pay for.
 4. **Two NUMA islands.** TP-4 inside a socket plus PP-2 across the UPI link is

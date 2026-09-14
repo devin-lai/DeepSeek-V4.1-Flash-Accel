@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vllm-dsv41-opt"
-version = "0.1.0"
-description = "vLLM general plugin: layer-range control for UVA CPU offloading (DeepSeek-V4.1-Flash on consumer GPUs)"
+version = "0.2.0"
+description = "vLLM plugin: exact pinned weight allocation and layer-aware UVA offload for DeepSeek-V4.1-Flash"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

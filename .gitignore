@@ -56,6 +56,8 @@ secrets.*
 !/deploy/presets/long-context.env
 !/deploy/presets/throughput.env
 !/deploy/presets/v41-flash.env
+!/deploy/presets/v41-flash-latency.env
+!/deploy/presets/v41-flash-throughput.env
 !/deploy/presets/v41-flash-vision.env
 
 # Python, editors, and build output
