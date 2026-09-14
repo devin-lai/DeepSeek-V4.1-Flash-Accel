@@ -1,25 +1,47 @@
 # DeepSeek V4.1 Flash Accel
 
-| **1.8× interactive output** | **55% higher concurrent throughput** | **42% less shared host RAM** |
+**Run DeepSeek-V4.1-Flash on eight 32 GB RTX 5090 GPUs.**
+Tuned vLLM presets, CPU offload, and the patches needed to serve on consumer
+Blackwell over PCIe, with an OpenAI-compatible API. No NVLink required.
+
+| **1.93× single-request generation** | **55% higher batch throughput** | **42% less shared host RAM** |
 | :--- | :--- | :--- |
-| **39.8 → 71.4 tok/s** · interactive c1 | **115.0 → 178.2 tok/s** · random c32 | **453 → 264 GiB** · throughput preset |
-| Static DSpark latency preset | Wider non-speculative batch | Exact pinned weight allocation |
+| **33.6 → 65.0 tok/s** | **115.0 → 178.2 tok/s** | **453 → 264 GiB** |
+| Synthetic 1K input / 128 output, one active request | Same workload, 32 concurrent requests | Approximately **189 GiB recovered** |
+| Latency preset | Throughput preset | Throughput preset |
 
-**Measured on 8× RTX 5090, against this project's previous patched CUDA-graph
-preset.** Three trials per workload, same prompts/seeds, unchanged checkpoint
-and quantization. The latency preset uses approximately 279 GiB shared
-RAM and also passed a 384 GiB cgroup limit experiment. These are short tests
-on one 503 GiB host. [Full results, ranges and limits](benchmarks/results/2026-09-14-v41-optimization.md).
+On the included code and prose prompts, single-request output rises from
+**39.8 to 71.4 tok/s (+79.4%)** with the latency preset. The throughput preset
+also raises **8K prefill throughput by 23.8%**, from 2,430 to 3,008 total tok/s.
 
-**Deploy and accelerate DeepSeek-V4.1-Flash with vLLM on consumer Blackwell GPUs.**
-Deployment presets, CUDA graph and attention fixes, CPU offload tools, and
-reproducible experiments for inference research. Text and image serving use an
-OpenAI-compatible API.
+**Results shipped in [`20eeea0`](https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel/commit/20eeea06b6a23f0703eeb5b9a29855e39a7c8a46).**
+Speed figures are three-trial means against this project's previous
+`v41-flash` preset, which already includes CUDA graphs and offload patches.
+Same host, prompts, seeds, checkpoint, and quantization; **936 timed requests,
+zero failures**. Shared RAM is a startup measurement, not total required RAM.
+[Full results and trial ranges](benchmarks/results/2026-09-14-v41-optimization.md) ·
+[Raw comparison data](benchmarks/results/2026-09-14-v41-optimization/comparison.json).
 
-TTFT is time to first token; TPOT is time per output token after the first.
-Throughput is measured across all requests in each workload.
+[Quickstart](#quickstart) · [Benchmarks](#measured-performance) · [How it works](#how-the-optimizations-work) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
-[Quickstart](#quickstart) · [How it works](#how-the-optimizations-work) · [Benchmarks](#measured-performance) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+## What changed
+
+- **Recover host RAM lost to allocator padding.** Page-rounded pinned weight
+  buffers replace power-of-two allocations, recovering about **164 GiB at the
+  same expert offload budget**. The final presets keep more experts on GPU,
+  bringing shared host RAM to 279 GiB for latency or 264 GiB for throughput.
+- **Enable five-token speculative decoding on SM120.** The latency preset
+  uses the checkpoint's DSpark drafter with static verification and smaller
+  CUDA graph captures. Adaptive verification is unsupported by this backend.
+- **Keep more weights on GPU and serve larger batches.** The throughput
+  preset lowers expert offload from 12 to 9 GiB/rank and allows 32 active
+  sequences, delivering **178.2 output tok/s** on the concurrent workload.
+
+Start with **[`v41-flash-latency`](deploy/presets/v41-flash-latency.env)** for
+interactive use. Choose **[`v41-flash-throughput`](deploy/presets/v41-flash-throughput.env)**
+for batch work; it improves aggregate throughput while increasing per-request
+token latency at 32 concurrent requests. Both build on the repository's
+[CUDA graph fixes and decoder-only expert offload](#how-the-optimizations-work).
 
 An independent community project for [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash),
 built on [vLLM](https://github.com/vllm-project/vllm),
@@ -102,7 +124,31 @@ validate file structure; add `--sha256` for comparison with ModelScope hashes.
 
 ## How the optimizations work
 
-### 1. Make CUDA graphs usable
+### 1. Remove host padding and tune the decode batch
+
+The exact allocator replaces power-of-two rounding with page-rounded CUDA
+host registration for persistent weights. At the same 12 GiB/rank expert
+budget, shared host memory falls from about **453 to 289 GiB**. The change
+applies to large persistent weight buffers, leaving the usual allocation
+paths in place for activations and temporary transfers.
+
+The latency preset combines static DSpark-5 with graph captures capped at
+96 query tokens: 16 active sequences × (5 drafts + 1). The measured graph
+pool shrinks from about **0.39 to 0.30 GiB per GPU** relative to the earlier
+DSpark configuration. Smaller captures and a higher GPU memory budget allow
+more expert weights to stay on GPU, reducing offload to 11 GiB/rank and
+shared host RAM to about **279 GiB**.
+
+The throughput preset uses 9 GiB/rank of expert offload and 32 active
+sequences without speculative decoding, reaching about **264 GiB shared RAM**.
+These are measurements of complete presets; the individual contributions
+to serving speed have not been isolated. The checkpoint and its MXFP4
+quantization stay unchanged.
+
+[Allocator implementation and GPU tests](vllm_dsv41_opt/README.md) ·
+[Measurements and tradeoffs](benchmarks/results/2026-09-14-v41-optimization.md).
+
+### 2. Make CUDA graphs usable
 
 CUDA graph replay reduces repeated CPU launch overhead. Two fixes address
 incorrect outputs after capture: vLLM clears the null KV-cache blocks, and
@@ -111,12 +157,12 @@ stack also needs the dispatch and cache-layout fixes in this repository.
 
 ![Eager execution launches each GPU kernel separately; graph replay reuses a captured sequence. The fixes clear null KV blocks after capture and use finite rows for masked gathers.](docs/assets/cuda-graphs.webp)
 
-**Recorded effect:** 33.7 vs 6.0 output tok/s at one concurrent request;
+**Earlier graph/eager experiment:** 33.7 vs 6.0 output tok/s at one concurrent request;
 median time per output token (TPOT) falls from 159.52 to 24.04 ms.
 [Patch details](upstream/README.md) ·
 [Capture investigation](benchmarks/results/2026-09-14-v41-cudagraphs.md)
 
-### 2. Offload decoder experts; keep encoder experts resident
+### 3. Offload decoder experts; keep encoder experts resident
 
 V4.1's causal encoder-decoder structure makes placement matter. Restricting
 expert offload to layers 20–39 keeps encoder expert weights on the GPUs during
@@ -126,7 +172,7 @@ PCIe. Engram lookups still use host memory.
 
 ![Eight RTX 5090 GPUs keep encoder experts in layers 0–19 resident. Selected decoder experts from layers 20–39 and Engram live in CPU RAM; decoder computation reads host-resident weights over PCIe/UVA.](docs/assets/expert-placement.webp)
 
-**Recorded effect:** 9.5% higher 8K prefill throughput and 8.7% lower time to
+**Earlier placement experiment:** 9.5% higher 8K prefill throughput and 8.7% lower time to
 first token (TTFT) in a separate eager-mode placement experiment.
 [Placement measurements](benchmarks/results/2026-09-14-v41-first-serve.md#where-the-offloaded-experts-should-live)
 
@@ -140,40 +186,50 @@ Two further changes help the checkpoint fit:
 The illustrations explain the mechanisms; the tables and linked result files
 are the source for quantitative claims.
 
-### 3. Remove host padding and tune the decode batch
-
-The new exact allocator replaces power-of-two rounding with page-rounded
-CUDA host registration for persistent weights. At the same expert budget,
-shared host memory falls from about 453 to 289 GiB. The latency preset also
-uses static DSpark-5 and smaller graph captures, keeping more experts on GPU
-and reaching about 279 GiB shared RAM. The throughput preset retains still
-more experts on GPU and permits 32 active sequences, using about 264 GiB.
-
-The checkpoint and its MXFP4 quantization stay unchanged. Adaptive DSpark
-verification remains unsupported by this SM120 indexer backend; the preset
-uses static verification. [Allocator implementation and GPU tests](vllm_dsv41_opt/README.md) ·
-[Measurements and tradeoffs](benchmarks/results/2026-09-14-v41-optimization.md).
-
 ## Measured performance
 
-**New text presets, three-trial means.** Output tok/s unless marked total.
-The control is the previous `v41-flash` graph-enabled preset; all runs use
-the same six-case harness. See the report for individual trials and latencies.
+**Text serving on 8× RTX 5090, three-trial means.** Output tok/s unless marked
+total; parentheses show the change from the previous `v41-flash` graph-enabled
+preset. Percentages use unrounded means. `c1`, `c8`, and `c32` mean 1, 8, and
+32 concurrent requests. All presets use the same six-case harness.
 
 | Workload | Previous preset | Latency preset | Throughput preset |
 | --- | ---: | ---: | ---: |
-| Random 1K / 128, c1 | 33.6 | 65.0 | 39.5 |
-| Random 1K / 128, c8 | 91.0 | 114.4 | 113.2 |
-| Random 1K / 128, c32 | 115.0 | 135.0 | 178.2 |
-| 8K prefill, c2 (total tok/s) | 2429.8 | 2587.5 | 3008.4 |
-| Interactive / 256, c1 | 39.8 | 71.4 | 46.0 |
-| Interactive / 256, c8 | 110.7 | 155.9 | 139.7 |
+| Code/prose → 256 tokens, c1 | 39.8 | **71.4 (+79.4%)** | 46.0 (+15.6%) |
+| Code/prose → 256 tokens, c8 | 110.7 | **155.9 (+40.9%)** | 139.7 (+26.3%) |
+| Random 1K → 128 tokens, c1 | 33.6 | **65.0 (+93.3%)** | 39.5 (+17.6%) |
+| Random 1K → 128 tokens, c8 | 91.0 | **114.4 (+25.7%)** | 113.2 (+24.4%) |
+| Random 1K → 128 tokens, c32 | 115.0 | 135.0 (+17.4%) | **178.2 (+55.0%)** |
+| 8K prefill, c2 (total tok/s) | 2,429.8 | 2,587.5 (+6.5%) | **3,008.4 (+23.8%)** |
 
-Choose `v41-flash-latency` for interactive generation and
-`v41-flash-throughput` for concurrent batch work. Wider batching reduces
-queueing but increases per-request token latency at c32. Both passed one
-32K and eight concurrent 8K cache probes; full task-quality parity and
-production capacity remain unmeasured.
+The [code/prose workload](benchmarks/workloads/interactive.jsonl) uses eight
+original prompts, 58–72 input tokens after the chat template, with thinking
+disabled. Throughput covers the full request lifecycle, including prefill
+and queueing. The latency preset's synthetic c1 result varied from
+**52.4 to 76.8 tok/s** across trials; its code/prose c1 result ranged from
+**70.2 to 72.1 tok/s**.
+
+For code/prose at c1, the latency preset reduces time per output token
+(TPOT) from **24.10 to 12.89 ms**. At c32, the throughput preset reduces
+time to first token (TTFT) from **19.54 to 2.73 seconds**, but TPOT rises
+from **124.41 to 157.15 ms**. These latency figures are means of the three
+trial medians; wider batching changes the balance between queueing and
+generation speed.
+
+| Shared host RAM at startup | Previous preset | Latency preset | Throughput preset |
+| --- | ---: | ---: | ---: |
+| Observed | 453 GiB | **279 GiB** | **264 GiB** |
+
+The machine has **503 GiB installed**. The latency preset also completed
+startup, benchmarks, and cache probes under a **384 GiB cgroup limit** with
+zero OOM events. This does not establish a minimum physical RAM requirement;
+shared host RAM excludes other memory use.
+
+Both new presets passed one 32K and eight concurrent 8K cache probes. The
+checkpoint and quantization are unchanged, but outputs and short-passage
+perplexity varied across identical requests. Full task-quality parity,
+long-context retrieval quality, and sustained production capacity remain
+unmeasured.
 
 [Repeated trials and raw request timings](benchmarks/results/2026-09-14-v41-optimization.md) ·
 [Reproduction commands](benchmarks/README.md#repeated-optimization-measurements).
