@@ -1,6 +1,6 @@
 # Patch guide and technical reports
 
-Patches and eight technical reports for DeepSeek-V4.1-Flash on 8× RTX 5090 D.
+Patches and eight technical reports for DeepSeek-V4.1-Flash on 8× RTX 5090.
 The reports describe the pinned stack, failure mechanisms, reproductions, and
 available evidence. They have not been submitted or accepted upstream.
 

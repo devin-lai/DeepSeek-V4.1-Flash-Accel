@@ -96,7 +96,7 @@ Two facts follow directly:
    '{"cpu_offload": true}'` keeps the TP-sharded table in pinned memory and
    gathers rows over PCIe with a Triton kernel.
 2. **Even without Engram the GPU part (286 GiB) does not fit in 251 GiB of
-   HBM.** Per TP-8 rank that is 35.8 GiB of weights against ~25 GiB usable
+   GPU memory.** Per TP-8 rank that is 35.8 GiB of weights against ~25 GiB usable
    after KV cache, CUDA graphs and workspace. About 11 GiB per rank (a third of
    the routed experts) has to be served from host memory as well.
 
@@ -104,7 +104,7 @@ Two facts follow directly:
 
 Per decode token, per layer: 6 routed experts × 3 matrices × 2304 × 5120 ×
 0.53 bytes ≈ 18.8 MB of MXFP4 expert weights; × 40 layers ≈ **750 MB per
-token**. Across 8 ranks that is ~94 MB per rank per token from HBM at 1.8 TB/s
+token**. Across 8 ranks that is ~94 MB per rank per token from GPU memory at 1.8 TB/s
 (≈ 0.05 ms) — the model is *not* weight-bandwidth-bound on a 5090 at batch 1.
 What dominates is:
 

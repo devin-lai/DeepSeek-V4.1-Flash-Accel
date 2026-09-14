@@ -15,6 +15,9 @@ Deployment presets, CUDA graph and attention fixes, CPU offload tools, and
 reproducible experiments for inference research. Text and image serving use an
 OpenAI-compatible API.
 
+TTFT is time to first token; TPOT is time per output token after the first.
+Throughput is measured across all requests in each workload.
+
 [Quickstart](#quickstart) · [How it works](#how-the-optimizations-work) · [Benchmarks](#measured-performance) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
 An independent community project for [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash),
@@ -42,7 +45,9 @@ and the [memory planner](tools/plan_memory.py) before allocating a machine.
 ## Quickstart
 
 On a matching Linux NVIDIA host, have Python 3, `pip` or `uv`, `aria2c`, `curl`,
-and the CUDA toolkit available, with `nvcc` on `PATH`.
+and the CUDA toolkit available, with `nvcc` on `PATH`. Setup creates a Python
+3.11 environment. The examples use writable `/data` directories; change the
+model, environment, and log paths if your machine uses another layout.
 
 ```bash
 git clone https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel.git
@@ -68,12 +73,16 @@ Once the server reports ready, open a second shell in the repository root:
 ```bash
 source /data/venvs/vllm-dsv41/bin/activate
 deploy/healthcheck.sh
-python deploy/verify.py
+mkdir -p benchmarks/local
+python deploy/verify.py --json benchmarks/local/verify.json
 
 curl -sS http://127.0.0.1:8000/v1/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4.1-flash","prompt":"The capital of France is","max_tokens":8,"temperature":0}'
 ```
+
+Inspect the probe output and saved JSON before benchmarking. These are sanity
+checks; a passing verdict alone does not establish model quality.
 
 For image inputs, stop the text server and restart with
 `PRESET=v41-flash-vision`. Download and first compilation add time; the recorded
@@ -184,6 +193,10 @@ Include exact revisions, hardware, flags, workload, baseline, and output-quality
 checks with performance claims. For research citations, use [CITATION.cff](CITATION.cff)
 and the exact commit. Credit the model and relevant upstream projects.
 The patch reports have not been submitted or accepted upstream.
+
+[Repository checks](https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel/actions/workflows/check.yml)
+cover public files, syntax, and documentation links. GPU performance and output
+quality require separate runs on the target hardware.
 
 ## License
 

@@ -1,24 +1,33 @@
 # Deployment design for 8× RTX 5090 (32 GB)
 
-This is the decision record. It explains *why* the launch script looks the
-way it does, so you can adapt it to 8× 4090-48G, 8× RTX PRO 6000, 4× 5090 with
-more host RAM, and so on.
+This guide explains the reference V4.1 deployment and the measurements behind
+its presets. Other GPU counts and memory sizes need their own validation;
+adding host RAM alone does not establish that a smaller GPU setup will work.
 
 ## The constraint
 
-| | GiB |
+| Resource or allocation | GiB |
 | --- | ---: |
-| HBM, 8 × 31.4 | 251 |
-| minus CUDA context, CUDA graphs, FlashInfer workspace, KV cache (≈ 4 per rank) | −32 |
-| **available for weights** | **≈ 219** |
-| GPU-resident weights needed (everything except Engram) | 286 |
-| **shortfall** | **≈ 67 → 12 GiB per rank, confirmed by measurement** |
+| Usable GPU memory, 8 × 31.4 | ≈ 251 |
+| Checkpoint on disk | ≈ 476 |
+| Configured expert-offload budget per rank | 12 |
+| Engram pinned host allocation, including allocator rounding | ≈ 264 |
+| Total pinned host memory in the recorded deployment | ≈ 452 |
+| Installed host RAM | 503 |
 
-Engram (189 GiB) goes to host RAM regardless. 503 GiB of DRAM leaves room for
-Engram + ~95 GiB of spilled experts + page cache, so host memory is not the
-bottleneck either. PCIe bandwidth is.
+Checkpoint bytes do not equal runtime allocation. Engram's roughly 189 GiB of
+checkpoint data pins about 264 GiB, and expert offload also incurs pinned-buffer
+rounding. Host RAM is a capacity constraint; PCIe reads affect speed. GPU
+headroom must also cover caches, capture, workspaces, and repacked weights.
+The [memory planner](../tools/plan_memory.py) includes these costs, and the
+[initial serving report](../benchmarks/results/2026-09-14-v41-first-serve.md#the-offload-floor)
+records why the reference preset uses a 12 GiB/rank offload budget.
 
 ## Options considered
+
+This table records the September 2026 investigation. Alternative engines and
+formats were not validated as working presets here; their current support
+must be checked separately before planning a deployment.
 
 | Option | Verdict |
 | --- | --- |
@@ -32,13 +41,14 @@ bottleneck either. PCIe bandwidth is.
 
 ## Parallelism: expert parallelism, not pipeline parallelism
 
-Measured on the box, three layouts and only one of them works:
+The reference investigation compared three layouts. Expert-byte counts are
+layout calculations; the outcome column describes the deployment observations.
 
 | layout | expert bytes/rank | verdict |
 | --- | ---: | --- |
 | TP-8, Marlin (2304/8 = 288 padded to 384) | 44.8 GiB | needs ~22 GiB/rank offloaded; host RAM cannot pay for it |
 | TP-4 × PP-2 (576 padded to 640) | 74.7 GiB for 40 layers, 20 per stage | loads, then every PP-1 worker dies: V4.1's MoE gate needs `input_ids`, which vLLM does not send across a pipeline boundary |
-| **TP-8 + `--enable-expert-parallel`** (whole experts, 2304 unpadded) | **33.6 GiB** | **the only layout that fits** |
+| **TP-8 + `--enable-expert-parallel`** (whole experts, 2304 unpadded) | **33.6 GiB** | **the working reference layout** |
 
 Expert parallelism matters here for a reason that has nothing to do with
 communication: it stops the MXFP4 kernels from padding. When each rank owns a
@@ -47,8 +57,8 @@ that to 384, inflating the whole expert bank by a third. When each rank owns 48
 *whole* experts, the intermediate size is the original 2304 and nothing is
 padded. That is 11 GiB per rank of pure waste removed.
 
-Pipeline parallelism is not an option at all until vLLM forwards `input_ids`
-past the first stage.
+Pipeline parallelism is blocked in the pinned stack by the
+[`input_ids` handoff issue](../upstream/vllm/ISSUE-pp-input-ids.md).
 
 ## Which experts to spill
 
@@ -67,31 +77,29 @@ Measured three ways at the same 12 GiB/rank budget, everything else identical:
 | **`DSV41_OFFLOAD_LAYERS=20-39`** | **2 654.5** | **5 741 ms** | **42.0** |
 | `DSV41_OFFLOAD_LAYERS=0-19` | 2 424.7 | 6 279 ms | 38.3 |
 
-The first and third rows are the same numbers, which is the control: stock walk
-order *is* encoder offload. The second is **+9.5 % prefill throughput and
-−8.7 % TTFT**, which is the mechanism working as argued. Decode moves less and
-less cleanly (+12.6 % at 8 streams, −5 % at 1, which is inside this stack's
-run-to-run variation); the concurrent gain is consistent with chunked prefill
-sharing steps with decode.
+The stock-order and encoder-only rows are close, consistent with stock order
+offloading encoder experts first. Decoder-only placement records **+9.5%
+prefill throughput and −8.7% TTFT** in this eager-mode experiment. Decode
+results are mixed across concurrency levels; the short runs do not establish
+a consistent decode improvement or its statistical uncertainty.
 
 So `OFFLOAD_LAYERS=20-39` is in the preset. It is a CED-specific lever: on
 V4-Flash, a plain decoder with no such split, the same restriction measured
 55.7 against 56.1 tok/s — nothing, exactly as expected.
 
-Raw numbers: `benchmarks/results/2026-09-14-v41-first-serve.md`.
+[Saved placement results](../benchmarks/results/2026-09-14-v41/ladder2-offload-placement.json).
 
 ## Speculative decoding
 
-DSpark would be enabled with 5 draft tokens and adaptive verification: at batch
-1 a 5090 is nowhere near compute-bound on this model, so accepted draft tokens
-should be almost free. **It is off in the preset** because it is unmeasured: adaptive verification
-needs full CUDA graphs, which only became correct on sm_120 with the VL-013 /
-FI-004 patches, and no DSpark run has been made since.
+DSpark remains disabled in the presets. No post-patch DSpark run is recorded
+here. A useful experiment would measure acceptance rate, draft and verification
+cost, throughput, and output quality against the same non-speculative baseline.
+Its potential benefit is a research question, not a published speedup.
 
 ## The sm_120 constraints, and why the preset looks like it does
 
-Four settings in `deploy/presets/v41-flash.env` are not tuning choices; without
-any one of them the model does not serve, or serves garbage:
+The [text preset](../deploy/presets/v41-flash.env) combines required compatibility
+fixes with settings chosen for the recorded workload:
 
 - `--block-size 64` — indexer states per block, scaled per layer by its
   compression ratio (VL-009),
@@ -100,14 +108,14 @@ any one of them the model does not serve, or serves garbage:
   no image tokens (FI-003, VL-011); with the FI-003 edit applied,
   `v41-flash-vision.env` drops this flag and serves images,
 - CUDA graphs **on** — with the VL-013 (null block scrubbed after capture)
-  and FI-004 (masked-index gathers) patches applied; `--enforce-eager` is the
-  fallback for an unpatched stack and costs most of the decode throughput,
+  and FI-004 (masked-index gathers) patches applied. Eager mode is available
+  for diagnosis but still needs the dispatch and cache-layout patches,
 - the patches in `upstream/`, all of which `deploy/preflight.py --v41` checks
   for by marker before the launcher starts anything.
 
-The first three are the reason this is a deployment repository and not a
-one-line command: each was found by running into it, and none of them is
-discoverable from an error message.
+Use the [runbook](../deploy/README.md#local-configuration) to create an ignored
+local preset when changing tuning values. Preset assignments take precedence
+over caller environment variables for these settings.
 
 ## Do not use `--numa-bind`
 
@@ -128,14 +136,16 @@ remote on this machine.
    gets right only by counting the vision tower as replicated and adding a
    measured 1.6 GiB/rank for the MoE backend's repacked layout — bytes that are
    not in the checkpoint headers.
-2. `--gpu-memory-utilization 0.92`: 5090 D has no display attached; 0.95 is
-   possible once CUDA-graph capture sizes are fixed.
-3. `--max-num-seqs` and `--cuda-graph-sizes`: graphs cost ~2.5 GiB at the
-   default size ladder; a short ladder (1, 2, 4, 8, 16, 32) saves ~1 GiB.
-4. `--max-model-len`: KV is 890 B/token; 1M tokens per request costs < 1 GiB
-   per rank. Not a memory lever on this model — leave it at 262144 or higher.
-5. `--language-model-only`: skips the 0.8 GiB vision tower when you only
-   serve text.
+2. `--gpu-memory-utilization`: the current presets use **0.93**. Changes need
+   memory profiling and successful CUDA-graph capture on the target machine.
+3. `--max-num-seqs`: the presets allow **16** sequences. Higher client
+   concurrency can queue; changing the server cap also changes memory needs.
+4. `--max-model-len`: the serving presets cap context at **32,768 tokens**.
+   Compact KV storage does not validate longer contexts; test memory,
+   correctness, and latency before increasing the cap.
+5. `--language-model-only`: restricts the text preset's input path. Check the
+   actual loaded allocation before deducting vision weights from a memory
+   estimate; the planner accounts for replication when the tower is present.
 
 ## What "optimal" means here
 
@@ -143,6 +153,7 @@ For an agentic workload (long prompts, short-to-medium generations, 4-32
 concurrent sessions) the goal ordering is:
 prefill throughput (tokens/s) → per-stream decode latency → aggregate decode
 throughput → startup time. The design above optimizes them in that order:
-prefill never touches PCIe, decode pays a bounded PCIe tax, and aggregate
-throughput is capped by that tax growing with the number of unique experts per
-step (see the cost model in `01-model-anatomy.md`).
+encoder expert weights stay on GPU during prefill, while Engram still accesses
+host memory. Decode also reads offloaded expert weights over PCIe. The cost
+depends on the experts touched by each workload; measure both latency and
+aggregate throughput when evaluating a new placement or concurrency setting.

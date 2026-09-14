@@ -5,7 +5,7 @@
 `vllm/models/deepseek_v4_1/{sparse_mla.py,nvidia/flashinfer_sparse.py}`,
 `vllm/v1/worker/utils.py`
 **Version:** vLLM main @ `8c1d1c297`, DeepGEMM vendored
-**Hardware:** 8x RTX 5090 D (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
+**Hardware:** 8x RTX 5090 (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
 **Status:** fixed locally; patch in `upstream/vllm/apply_patch.py`, and
 DeepSeek-V4.1-Flash now serves on 8x RTX 5090 with it.
 

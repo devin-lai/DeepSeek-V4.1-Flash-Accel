@@ -3,7 +3,7 @@
 **Component:** `vllm/v1/attention/backends/mla/sparse_swa.py`,
 `vllm/models/deepseek_v4_1/attention.py`
 **Version:** vLLM main @ `8c1d1c297`
-**Hardware:** 8x RTX 5090 D (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
+**Hardware:** 8x RTX 5090 (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
 
 Two small, independent defects in the DeepSeek-V4 sliding-window path. Neither
 is sm_120-specific in nature, but on sm_120 they are the difference between a

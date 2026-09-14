@@ -11,8 +11,8 @@ in `benchmarks/`.
 ### Engram on the host, always
 
 The two n-gram tables are 189 GiB of FP8 that are *indexed*, not multiplied.
-A token reads 48 rows × 256 B = 12 KB. Keeping them in HBM wastes 40 % of the
-checkpoint's bytes on data that is touched at PCIe-trivial rates. vLLM:
+A token reads 48 rows × 256 B = 12 KB. The tables account for about 40% of the
+checkpoint; placing them on the host frees GPU memory for the compute weights. vLLM:
 `--engram-config '{"cpu_offload": true}'` (TP-sharded pinned tables, UVA
 gather). The tech report's own serving stack prefetches Engram rows from host
 DRAM over RDMA.
@@ -207,26 +207,30 @@ inside the kernel before concluding it cannot be made runtime.
 
 ## 5. Memory that is not weights
 
-- KV cache: 890 B/token global + FP8 SWA (128 tokens/layer). A million-token
-  context is < 1 GiB per rank; `--max-model-len` is not a memory lever.
+- KV cache: the architecture estimate is 890 B/token of global KV plus FP8
+  SWA. This does not validate long-context serving: the current presets use
+  `--max-model-len 32768`, and longer contexts need quality and memory checks.
 - CUDA graphs: the default capture ladder costs ~2.5 GiB per rank. Trim with
   `--cuda-graph-sizes` or `--max-num-seqs` if you need the last GiB.
 - FlashInfer sparse-MLA workspace: fixed, ~0.5 GiB.
-- `--gpu-memory-utilization`: 0.92 is safe on a headless 5090 D; the driver
-  keeps ~600 MiB for itself.
-- `--language-model-only` drops the 0.8 GiB vision tower for text serving.
+- `--gpu-memory-utilization`: the reference V4.1 presets use **0.93**. Profile
+  allocations and capture on your machine before changing it.
+- `--language-model-only` selects text serving. Verify the actual loaded
+  allocation before assuming that the flag removes the vision tower's memory.
 
 ## 6. Startup time
 
-Loading 286 GiB from NVMe and pinning ~280 GiB of host memory takes minutes;
-Marlin repacking and FlashInfer JIT add more on the first start.
+The checkpoint is approximately 476 GiB; the recorded deployment pinned about
+452 GiB of host RAM. The initial eager startup took about 285 seconds with a
+warm OS page cache. Marlin repacking and FlashInfer JIT add work on the first
+start; those figures are not a cold-start guarantee.
 
 - Keep `VLLM_ENGINE_READY_TIMEOUT_S=3600`.
 - Install `flashinfer-cubin` / `flashinfer-jit-cache` for your CUDA version so
   sm_120 kernels are prebuilt; point `FLASHINFER_WORKSPACE_BASE` and
   `VLLM_CACHE_ROOT` at a persistent disk so JIT/compile caches survive.
-- Put the checkpoint on NVMe and let the page cache keep it warm across
-  restarts (503 GiB of RAM is enough to cache the GPU-resident part).
+- Put the checkpoint on NVMe. Record the page-cache state when comparing
+  startup times; available cache space changes as pinned allocations grow.
 
 ## 7. Things that do not help on this model
 

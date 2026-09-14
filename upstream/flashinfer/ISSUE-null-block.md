@@ -5,7 +5,7 @@
 `.../prefill_kernel.cuh` (`prefill_kv_entry_base` and the two inline clamps),
 `.../decode_dsv4_kernel.cuh` (`issue_gather`)
 **Version:** flashinfer 0.6.18.post1
-**Hardware:** 8x RTX 5090 D (sm_120), DeepSeek-V4.1-Flash under vLLM main
+**Hardware:** 8x RTX 5090 (sm_120), DeepSeek-V4.1-Flash under vLLM main
 **Fix:** attached (`apply_patch.py`, edit group FI-004), verified on the model
 
 ## Symptom, as seen from vLLM

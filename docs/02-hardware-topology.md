@@ -8,7 +8,7 @@ model's workload. Other hardware needs its own topology and bandwidth checks.
 
 | Item | Value |
 | --- | --- |
-| GPUs | 8× NVIDIA GeForce RTX 5090 D, 32 607 MiB each (31.4 GiB usable), sm_120 |
+| GPUs | 8× NVIDIA GeForce RTX 5090, 32 607 MiB each (31.4 GiB usable), sm_120 |
 | Driver / CUDA | 595.71.05 / CUDA 13.2 toolkit (torch 2.13 + cu130 wheels) |
 | PCIe | Gen5 x16 per GPU, **no NVLink** |
 | GPU P2P | **disabled** (GeForce driver policy) — NCCL falls back to `SHM/direct/direct` |
@@ -40,7 +40,7 @@ OOM-kill workers with host-resident weights. See the
 
 ## What this means for a 552B MoE
 
-1. **Weights do not fit.** 8 × 31.4 GiB = 251 GiB of HBM. The non-Engram
+1. **Weights do not fit.** 8 × 31.4 GiB = 251 GiB of GPU memory. The non-Engram
    part of DeepSeek-V4.1-Flash is ~292 GiB. Something has to live in host RAM.
 2. **Decode all-reduces are cheap enough.** A TP-8 decode step issues on the
    order of 100 small all-reduces (10 KB each at batch 1). At ~80 µs each that

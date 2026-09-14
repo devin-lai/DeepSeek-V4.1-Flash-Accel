@@ -1,5 +1,5 @@
 # Fault inventory for serving 500 GB-class DeepSeek MoE checkpoints on consumer
-# Blackwell (sm_120).  Every entry was reproduced on 8x RTX 5090 D; the
+# Blackwell (sm_120).  Every entry was reproduced on 8x RTX 5090; the
 # `evidence` field says what was actually measured, and `status` says how far
 # the fix got.  `signature` entries are Python regexes matched against server
 # logs by `tools/faultscan.py`.
@@ -8,7 +8,7 @@
 # severity: blocker | major | minor | perf
 
 schema = 1
-measured_on = "8x RTX 5090 D (sm_120, 32 GiB), 2x Xeon Gold 6530, 503 GiB DDR5, PCIe Gen5 x16, no NVLink"
+measured_on = "8x RTX 5090 (sm_120, 32 GB per GPU), 2x Xeon Gold 6530, 503 GiB DDR5, PCIe Gen5 x16, no NVLink"
 stack = "vLLM main @8c1d1c297, FlashInfer 0.6.18.post1, torch 2.13+cu130, driver 595.71.05, CUDA 13.2"
 
 # ---------------------------------------------------------------------------

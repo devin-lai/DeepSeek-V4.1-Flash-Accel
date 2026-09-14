@@ -2,7 +2,7 @@
 
 **Component:** `vllm/models/deepseek_v4_1/`, pipeline `IntermediateTensors`
 **Version:** vLLM main @ `8c1d1c297`
-**Hardware:** 8x RTX 5090 D, DeepSeek-V4.1-Flash, TP4 x PP2
+**Hardware:** 8x RTX 5090, DeepSeek-V4.1-Flash, TP4 x PP2
 
 ## Summary
 

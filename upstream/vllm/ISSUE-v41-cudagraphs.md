@@ -4,7 +4,7 @@
 `vllm/v1/attention/backends/mla/compressor_utils.py`,
 `vllm/models/deepseek_v4_1/compressor.py`
 **Version:** vLLM main @ `8c1d1c297`, FlashInfer 0.6.18.post1, torch 2.13+cu130
-**Hardware:** 8× RTX 5090 D (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
+**Hardware:** 8× RTX 5090 (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
 **Status:** root cause established; patch attached (`apply_patch.py`, edit
 `v1/worker/gpu/model_runner.py`); the kernel half is
 `upstream/flashinfer/ISSUE-null-block.md`.

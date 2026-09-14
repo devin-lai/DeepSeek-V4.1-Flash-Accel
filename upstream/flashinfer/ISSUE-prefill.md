@@ -3,7 +3,7 @@
 **Component:** `csrc/sparse_mla_sm120_prefill.cu`,
 `include/flashinfer/attention/sparse_mla_sm120/prefill_kernel.cuh`
 **Version:** flashinfer 0.6.18.post1
-**Hardware:** 8x RTX 5090 D (sm_120), DeepSeek-V4.1-Flash under vLLM main
+**Hardware:** 8x RTX 5090 (sm_120), DeepSeek-V4.1-Flash under vLLM main
 
 This is the prefill sibling of the decode-dispatch problem in
 [`ISSUE.md`](ISSUE.md). Same shape, same cause, different file — and a second

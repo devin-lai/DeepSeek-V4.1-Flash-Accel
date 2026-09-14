@@ -10,9 +10,10 @@
 | [Eager baseline](results/2026-09-14-v41/kit-v41-preset-bench.json) | The corresponding eager-mode summaries |
 | [Graph-enabled sanity probes](results/2026-09-14-v41/kit-v41-graphs-verify.json) | Generated continuations, short-passage perplexity, and chat answer |
 | [Graph investigation](results/2026-09-14-v41-cudagraphs.md) | Experiment configurations and recorded outcomes |
+| [Offload placement results](results/2026-09-14-v41/ladder2-offload-placement.json) | Stock-order, decoder-only, and encoder-only offload in eager mode |
 | [Initial serving report](results/2026-09-14-v41-first-serve.md) | Earlier eager-mode deployment and offload results |
 
-The 2026-09-14 comparison uses one 8× RTX 5090 D machine, 503 GiB host RAM,
+The 2026-09-14 comparison uses one 8× RTX 5090 machine, 503 GiB host RAM,
 TP8 + expert parallelism, Marlin, Engram on CPU, and 12 GiB/rank offloaded.
 The graph-enabled run restricts offload to decoder layers 20–39. See the
 [engineering report](../docs/07-engineering-report.md#2-what-v41-flash-costs-today)

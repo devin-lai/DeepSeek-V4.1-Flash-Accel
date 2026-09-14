@@ -2,7 +2,7 @@
 
 **Component:** `csrc/sparse_mla_sm120_decode_dsv4.cu`, `flashinfer/mla/_sparse_mla_sm120.py`
 **Version:** flashinfer 0.6.18.post1 (`flashinfer-jit-cache` wheel), CUDA 13.2, driver 595.71.05
-**Hardware:** 8x NVIDIA GeForce RTX 5090 D (sm_120), PCIe Gen5 x16, no NVLink
+**Hardware:** 8x NVIDIA GeForce RTX 5090 (sm_120), PCIe Gen5 x16, no NVLink
 **Consumer:** vLLM main @ `8c1d1c297`, `FLASHINFER_MLA_SPARSE_DSV41` backend, DeepSeek-V4.1-Flash TP8
 
 ## Summary

@@ -2,7 +2,7 @@
 
 Start with the [quickstart](../README.md#quickstart) and
 [deployment runbook](../deploy/README.md). The reference configuration is
-8× RTX 5090 D with 503 GiB host RAM; other hardware needs validation.
+8× RTX 5090 with 503 GiB host RAM; other hardware needs validation.
 
 | Guide | Purpose |
 | --- | --- |

@@ -2,7 +2,7 @@
 
 **Component:** `vllm/models/deepseek_v4_1/nvidia/flashinfer_sparse.py`
 **Version:** vLLM main @ `8c1d1c297`, FlashInfer 0.6.18.post1
-**Hardware:** 8x RTX 5090 D (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
+**Hardware:** 8x RTX 5090 (sm_120), DeepSeek-V4.1-Flash, TP8 + EP
 
 ## Summary
 

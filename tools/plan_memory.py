@@ -164,7 +164,7 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("model_dir")
     ap.add_argument("--gpus", type=int, default=8)
-    ap.add_argument("--gpu-gib", type=float, default=31.4, help="usable GiB per card (5090 D = 31.4)")
+    ap.add_argument("--gpu-gib", type=float, default=31.4, help="usable GiB per card (5090 = 31.4)")
     ap.add_argument("--host-gib", type=float, default=0.0, help="host RAM; 0 = read /proc/meminfo")
     ap.add_argument("--tp", type=int, default=8)
     ap.add_argument("--pp", type=int, default=1)

@@ -1,6 +1,6 @@
-# Measured on 8x RTX 5090 D, 2026-09-13
+# Measured on 8x RTX 5090, 2026-09-13
 
-Machine: 2x Xeon Gold 6530, 503 GiB DDR5, 8x RTX 5090 D (31.4 GiB usable each),
+Machine: 2x Xeon Gold 6530, 503 GiB DDR5, 8x RTX 5090 (31.4 GiB usable each),
 PCIe Gen5 x16, no NVLink, GPU P2P disabled. vLLM main @ 8c1d1c297 (cu130,
 torch 2.13.0), driver 595.71.05.
 

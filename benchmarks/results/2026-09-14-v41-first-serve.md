@@ -6,7 +6,7 @@ came from on the reference machine.
 
 Stack: vLLM main @`8c1d1c297` + `upstream/vllm/apply_patch.py`, FlashInfer
 0.6.18.post1 + `upstream/flashinfer/apply_patch.py`, torch 2.13+cu130, driver
-595.71.05. 8× RTX 5090 D, 2× Xeon Gold 6530, 503 GiB DDR5.
+595.71.05. 8× RTX 5090, 2× Xeon Gold 6530, 503 GiB DDR5.
 
 Common flags: TP-8, `--enable-expert-parallel`, `--engram-config
 '{"cpu_offload": true}'`, `--cpu-offload-params w13_weight w2_weight`,

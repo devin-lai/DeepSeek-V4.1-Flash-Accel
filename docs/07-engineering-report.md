@@ -62,7 +62,8 @@ VENV=/data/venvs/vllm-dsv41 MODEL=/data/models/DeepSeek-V4.1-Flash \
 source /data/venvs/vllm-dsv41/bin/activate
 
 # 3. serve
-MODEL=/data/models/DeepSeek-V4.1-Flash PRESET=v41-flash deploy/serve.sh
+HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
+  PRESET=v41-flash deploy/serve.sh
 
 # 4. check it is right, not just up
 deploy/healthcheck.sh && python deploy/verify.py
@@ -555,7 +556,7 @@ benchmarks/results/             saved benchmark summaries and selected probe out
 
 ## The machine
 
-2× Xeon Gold 6530 (64 cores), 503 GiB DDR5, 8× RTX 5090 D (sm_120, 32 GiB),
+2× Xeon Gold 6530 (64 cores), 503 GiB DDR5, 8× RTX 5090 (sm_120, 32 GB per GPU),
 PCIe Gen5 ×16, no NVLink, GPU P2P disabled. vLLM main @`8c1d1c297`,
 FlashInfer 0.6.18.post1, torch 2.13 + cu130, driver 595.71.05, CUDA 13.2.
 

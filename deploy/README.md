@@ -2,7 +2,7 @@
 
 [Quickstart](../README.md#quickstart) · [Benchmarks](../benchmarks/README.md) · [Patches](../upstream/README.md)
 
-The reference V4.1 setup uses Linux, 8× RTX 5090 D, 503 GiB host RAM,
+The reference V4.1 setup uses Linux, 8× RTX 5090, 503 GiB host RAM,
 approximately 476 GiB of weights, and the pinned stack installed by
 `scripts/env/setup.sh`. The presets configure 32,768 tokens of context.
 
@@ -13,7 +13,8 @@ Run from the repository root:
 
 ```bash
 source /data/venvs/vllm-dsv41/bin/activate
-MODEL=/data/models/DeepSeek-V4.1-Flash PRESET=v41-flash deploy/serve.sh
+HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
+  PRESET=v41-flash deploy/serve.sh
 ```
 
 The launcher runs preflight, starts vLLM in the foreground, and saves logs
@@ -74,7 +75,8 @@ preset to an ignored local file, edit it, and use its filename without `.env`:
 ```bash
 cp deploy/presets/v41-flash.env deploy/presets/v41-flash-eager.env
 # Edit v41-flash-eager.env: change ENFORCE_EAGER=0 to ENFORCE_EAGER=1.
-MODEL=/data/models/DeepSeek-V4.1-Flash PRESET=v41-flash-eager deploy/serve.sh
+HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
+  PRESET=v41-flash-eager deploy/serve.sh
 ```
 
 Stop the previous server before restarting on the same GPUs. See the

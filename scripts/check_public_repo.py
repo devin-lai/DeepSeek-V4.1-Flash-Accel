@@ -27,7 +27,7 @@ PATTERNS = {
 # an image requires inspecting it and updating its exact content digest here.
 REVIEWED_IMAGES: dict[str, str] = {
     "docs/assets/cuda-graphs.webp": "8c4803ad90200a299d0fe9a437ef052add3bb615f06b3f5c4fd0209161c4f366",
-    "docs/assets/expert-placement.webp": "cf44837c2b2865818dfde8883305c6cb3528e0de0bc8270c828b27998042fdd4"
+    "docs/assets/expert-placement.webp": "835b269750ced3b75dfdc62b3f333ade5ad005ba66a65b825d3920a07d61bd61"
 }
 LINK = re.compile(r"\[[^\]\n]+\]\(([^\s)]+)(?:\s+\"[^\"]*\")?\)")
 
