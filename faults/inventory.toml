@@ -235,7 +235,7 @@ id = "PT-001"
 title = "Pinned host allocations round up to a power of two, and it is not configurable"
 component = "pytorch"
 severity = "major"
-status = "wontfix"
+status = "workaround"
 affects = ["any host-offloaded model"]
 hardware = ["any"]
 signature = []
@@ -259,13 +259,13 @@ Engram is 16 shards (8 ranks x 2 tables) of 11.5 GiB each; every one rounds to
 16.
 """
 fix = """
-Plan around it rather than against it.  Size host-resident shards just under a
-power of two, and budget with
-
-    host RAM = sum(roundup_pow2(shard)) + gpus * --cpu-offload-gb
-
-`tools/plan_memory.py` applies this rule.  On a 503 GiB box it leaves an offload
-budget near 14 GiB per rank.
+Use plugin 0.2.0 with `DSV41_EXACT_PINNED=1` on the recorded V4.1 stack.
+It registers page-rounded anonymous mappings for persistent weights, reducing
+Engram storage to 188.83 GiB and also eliminating expert-buffer padding.
+Activations and temporary async buffers keep PyTorch's allocator. For stock
+allocation, sum the rounded size of every Engram and expert buffer; multiplying
+only the requested offload budget by the rank count underestimates host RAM.
+`tools/plan_memory.py --exact-pinned` models the new allocation path.
 """
 evidence = """
 Measured by requesting pinned buffers of known size and reading `Shmem` from
@@ -282,14 +282,15 @@ Measured by requesting pinned buffers of known size and reading `Shmem` from
 
 It bites twice on DeepSeek-V4.1-Flash, and the second one is easy to miss:
 
-- **Engram**: 16 shards (8 ranks x 2 tables) of 11.80 GiB round to 16 each, so
-  189 GiB of tensors occupy 256 GiB; with the projection shards, ~264 GiB.
-- **The expert offload**: the UVA offloader pins one buffer per parameter, and
-  expert matrices are nowhere near powers of two. At EP8 a 12.3 GiB/rank budget
-  is 29 buffers occupying **22.0 GiB -- 1.78x**. Summing the budget rather than
-  the buffers under-predicted total host use by ~100 GiB (352 against the 453
-  GiB of Shmem observed on an 8-rank run). `tools/plan_memory.py` walks the
-  buffers in the order the offloader takes them.
+- **Engram**: 16 weight shards round to 16 GiB each; 16 scale shards round
+  to 0.5 GiB each, totaling 264 GiB. Small projection weights stay on GPU.
+- **Expert offload**: a 12 GiB/rank budget spills 31 complete parameters,
+  12.3926 GiB payload, occupying 23.5 GiB/rank. Scales are excluded from the
+  budget. Thus 264 + 8 x 23.5 = 452 GiB, plus approximately 1 GiB of IPC,
+  explains the observed 453 GiB of Shmem. The previous 29-buffer estimate
+  incorrectly included scales in the offload budget.
+- With exact allocations at the same budget, observed Shmem was 289 GiB.
+  See benchmarks/results/2026-09-14-v41-optimization.md.
 """
 references = ["tools/plan_memory.py"]
 
@@ -297,7 +298,7 @@ references = ["tools/plan_memory.py"]
 
 [[fault]]
 id = "VL-004"
-title = "--numa-bind OOM-kills an offloaded MoE and buys no bandwidth"
+title = "Strict NUMA binding can OOM-kill a host-heavy MoE"
 component = "vllm"
 severity = "major"
 status = "workaround"
@@ -314,15 +315,18 @@ The four workers bound to one socket together need more than that socket's
 251 GiB, and a bound process cannot spill to the other node.
 """
 fix = """
-Do not pass `--numa-bind` when any weights are host-resident.  There is nothing
-to give up: UVA reads measured 51.3 GB/s node-local and 51.1 GB/s cross-node,
-and end-to-end throughput was 118.0 vs 117.9 tok/s with and without the flag.
+Leave strict `--numa-bind` off for the original rounded-allocation preset.
+Check per-node capacity and page placement before enabling it elsewhere.
+Single-GPU UVA bandwidth (51.3 local / 51.1 remote GB/s) did not expose
+contention: eight concurrent readers measured 260.3 local / 197.4 remote GB/s
+aggregate. The exact-pinned serving workers already allocate nearly all host
+weights on their GPU's local node without this flag.
 """
 evidence = """
 UVA micro-benchmark on GPU6/membind1 and GPU7/membind0 (`scripts/bench/uva_bench.py`),
 and the V4-Flash matrix rows `TP8 + EP` vs `TP8 + EP + --numa-bind`.
 """
-references = ["scripts/bench/uva_bench.py"]
+references = ["scripts/bench/uva_bench.py", "scripts/bench/numa_bandwidth.py"]
 
 # ---------------------------------------------------------------------------
 
@@ -887,3 +891,38 @@ capture: graphs on, 6/6 continuations, "$8" on the word problem, 94 graph
 replays with finite logits. Raw runs in `benchmarks/results/2026-09-14-v41-cudagraphs.md`.
 """
 references = ["upstream/vllm/ISSUE-v41-cudagraphs.md", "upstream/flashinfer/ISSUE-null-block.md"]
+
+# ---------------------------------------------------------------------------
+
+[[fault]]
+id = "VL-014"
+title = "Adaptive DSpark verification is unsupported by the SM120 indexer backend"
+component = "vllm"
+severity = "major"
+status = "workaround"
+affects = ["DeepSeek-V4.1-Flash with adaptive DSpark verification"]
+hardware = ["sm_120"]
+signature = ["Adaptive verification trims verification requests on device"]
+symptom = """
+Startup fails after loading weights:
+
+    Adaptive verification trims verification requests on device, which the
+    DeepseekV41IndexerBackend attention backend does not support.
+"""
+root_cause = """
+Adaptive verification requires device-decided query lengths. The recorded
+SM120 indexer backend does not support that contract. Correct CUDA graph
+capture alone does not make the adaptive path available.
+"""
+fix = """
+Use static verification: set `enable_adaptive_verification=false` in the
+speculative configuration, as in `v41-flash-latency`. Do not bypass the backend
+support gate. Supporting adaptive verification requires an indexer kernel and
+metadata path that honor device-side lengths, then graph and output validation.
+"""
+evidence = """
+Adaptive DSpark-5 failed at startup on the reference eight-GPU host. Static
+DSpark-5 passed sanity checks, repeated serving workloads, and 32K/8x8K cache
+probes. See benchmarks/results/2026-09-14-v41-optimization.md.
+"""
+references = ["deploy/presets/v41-flash-latency.env", "benchmarks/results/2026-09-14-v41-optimization.md"]

@@ -1,0 +1,17 @@
+{
+  "startup_seconds": 280.0379652720294,
+  "min_available_bytes": 11981881344,
+  "memory": {
+    "total": 540133654528,
+    "available": 13491175424,
+    "percent": 97.5,
+    "used": 526642479104,
+    "free": 14238392320,
+    "active": 427008000,
+    "inactive": 510307344384,
+    "buffers": 16412672,
+    "cached": 489630429184,
+    "shared": 486654578688,
+    "slab": 3894071296
+  }
+}

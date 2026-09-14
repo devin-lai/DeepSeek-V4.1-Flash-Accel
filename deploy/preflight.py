@@ -87,12 +87,13 @@ def check_nvcc() -> None:
 
 
 # Host bytes an offload budget actually pins, measured at EP8 on 8x RTX 5090:
-# 12.3 GiB/rank of expert weights across 29 buffers occupied 22.0 GiB.
+# A 12 GiB budget spills 12.39 GiB across 31 buffers, occupying 23.5 GiB.
 # `tools/plan_memory.py` models the same thing buffer by buffer.
-OFFLOAD_PIN_FACTOR = 1.78
+OFFLOAD_PIN_FACTOR = 2.0
 
 
-def check_host_ram(engram_gib: float, offload_gb: float, tp: int) -> None:
+def check_host_ram(engram_gib: float, offload_gb: float, tp: int,
+                   exact_pinned: bool = False) -> None:
     try:
         with open("/proc/meminfo") as fh:
             meminfo = dict(
@@ -112,13 +113,16 @@ def check_host_ram(engram_gib: float, offload_gb: float, tp: int) -> None:
     # already accounts for that; the offload budget does not, because the
     # offloader pins one buffer per parameter and expert matrices are nowhere
     # near powers of two. Measured at EP8: 12.3 GiB/rank of weights occupy
-    # 22.0. Summing the budget instead under-predicts by ~100 GiB on this box.
-    need = engram_gib + offload_gb * tp * OFFLOAD_PIN_FACTOR
+    # 23.5. Summing the budget instead under-predicts by ~90 GiB on this box.
+    # Exact registration removes allocator rounding. Keep 10% for the final
+    # whole parameter that can overshoot the requested offload budget.
+    pin_factor = 1.10 if exact_pinned else OFFLOAD_PIN_FACTOR
+    need = engram_gib + offload_gb * tp * pin_factor
     detail = f"{total:.0f} GiB total, {avail:.0f} GiB available, {swap:.0f} GiB swap"
     if need:
         detail += (f"; this config needs about {need:.0f} GiB pinned"
-                   f" ({offload_gb:.0f} GiB/rank offload x {OFFLOAD_PIN_FACTOR} "
-                   f"for pinned rounding)" if offload_gb else
+                   f" ({offload_gb:.0f} GiB/rank offload x {pin_factor} "
+                   f"allocation allowance)" if offload_gb else
                    f"; this config needs about {need:.0f} GiB pinned")
     if need and need > avail:
         record(FAIL, "host ram", detail + " -- will not fit")
@@ -146,7 +150,7 @@ def check_numa() -> None:
         except OSError:
             pass
     record(OK, "numa", f"{len(nodes)} nodes, {', '.join(f'{s:.0f} GiB' for s in sizes)} "
-                       "-- do NOT pass --numa-bind with host-offloaded weights (VL-004)")
+                       "-- check per-node capacity and actual page placement before strict binding (VL-004)")
 
 
 # -------------------------------------------------------------------- model
@@ -200,7 +204,7 @@ def check_model(model_dir: str) -> dict:
     return cfg
 
 
-def check_stack() -> None:
+def check_stack(exact_pinned: bool = False) -> None:
     try:
         import torch
         record(OK, "torch", f"{torch.__version__}, cuda {torch.version.cuda}")
@@ -219,9 +223,13 @@ def check_stack() -> None:
         record(WARN, "flashinfer", "not importable")
     try:
         import vllm_dsv41_opt  # noqa: F401
-        record(OK, "vllm_dsv41_opt", "installed (single-copy offload, layer ranges)")
+        if exact_pinned:
+            from vllm_dsv41_opt.pinned import empty_pinned  # noqa: F401
+        record(OK, "vllm_dsv41_opt", "installed" + (" (exact pinned weights available)" if exact_pinned else ""))
     except ImportError:
-        record(WARN, "vllm_dsv41_opt", "not installed; stock two-copy offloader will be used (VL-008)")
+        record(FAIL if exact_pinned else WARN, "vllm_dsv41_opt",
+               "install vllm-dsv41-opt >=0.2 for exact pinned weights" if exact_pinned else
+               "not installed; stock two-copy offloader will be used (VL-008)")
 
 
 # ------------------------------------------------------- V4.1-specific stack
@@ -348,12 +356,12 @@ def lint_v41_flags(args) -> None:
 
 
 def lint_flags(args) -> None:
-    if args.numa_bind and args.offload_gb > 0:
-        record(FAIL, "flags", "--numa-bind with host-offloaded weights OOM-kills a worker "
-                              "and buys no bandwidth (VL-004)")
+    if args.numa_bind and args.offload_gb > 0 and not args.exact_pinned:
+        record(FAIL, "flags", "strict --numa-bind can exhaust one node with the stock "
+                              "pinned weight allocator (VL-004)")
     elif args.numa_bind:
-        record(WARN, "flags", "--numa-bind measured within noise here (118.0 vs 117.9 tok/s); "
-                              "it is only a liability (VL-004)")
+        record(WARN, "flags", "strict NUMA binding needs per-node memory validation; "
+                              "measure actual page placement before changing it (VL-004)")
     if not args.expert_parallel and args.tp > 1:
         record(WARN, "flags", "no --enable-expert-parallel: MXFP4 pads the per-rank intermediate "
                               "size, costing up to 1.33x the expert bytes, and EP measured "
@@ -378,7 +386,9 @@ def main() -> int:
     ap.add_argument("--expert-parallel", action="store_true")
     ap.add_argument("--offload-gb", type=float, default=0.0)
     ap.add_argument("--engram-gib", type=float, default=0.0,
-                    help="pinned host GiB for Engram tables (V4.1: 264)")
+                    help="pinned host GiB for Engram (V4.1: 264 stock, 189 exact)")
+    ap.add_argument("--exact-pinned", action="store_true",
+                    help="DSV41_EXACT_PINNED=1 is enabled for weight allocation")
     ap.add_argument("--numa-bind", action="store_true")
     ap.add_argument("--autotune", action="store_true")
     ap.add_argument("--block-size", type=int, default=0)
@@ -390,10 +400,10 @@ def main() -> int:
 
     check_gpus(args.gpus)
     check_nvcc()
-    check_host_ram(args.engram_gib, args.offload_gb, args.tp)
+    check_host_ram(args.engram_gib, args.offload_gb, args.tp, args.exact_pinned)
     check_numa()
     check_model(args.model)
-    check_stack()
+    check_stack(args.exact_pinned)
     lint_flags(args)
     if args.v41:
         check_v41_patches()

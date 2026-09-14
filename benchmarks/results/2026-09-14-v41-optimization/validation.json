@@ -1,0 +1,21 @@
+{
+  "package_version": "0.2.0",
+  "gpu_pytest": {
+    "command": "python -m pytest vllm_dsv41_opt/tests -q",
+    "passed": 9,
+    "elapsed_seconds": 24.79,
+    "environment": "same CUDA serving environment; installed wheel"
+  },
+  "cpu_unittest": {
+    "commands": [
+      "python -m unittest discover -s scripts/bench -p test_v41_bench.py",
+      "python -m unittest discover -s tools -p test_plan_memory.py"
+    ],
+    "passed": 4
+  },
+  "build": {
+    "sdist": true,
+    "wheel": true,
+    "wheel_sha256": "1e6a5a6efee2e077cb130613b0249ce5f68efc4db37882af776fa644f58e41e5"
+  }
+}

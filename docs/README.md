@@ -6,6 +6,7 @@ Start with the [quickstart](../README.md#quickstart) and
 
 | Guide | Purpose |
 | --- | --- |
+| [New text presets](../benchmarks/results/2026-09-14-v41-optimization.md) | Exact host allocation, static DSpark, wider batching, repeated trials and raw timings |
 | [Benchmarks](../benchmarks/README.md) | Saved evidence, comparison scope, and reproduction commands |
 | [Hardware](02-hardware-topology.md) | Reference GPU, CPU, RAM, and interconnect measurements |
 | [Troubleshooting](05-fault-inventory.md) | Known failure signatures and fixes for the pinned stack |

@@ -31,7 +31,7 @@ fi
 [ -x "$PY" ] || { echo "no python at $PY" >&2; exit 1; }
 
 say "2/5  installing the offload plugin"
-"$VENV/bin/pip" install -q "$REPO/vllm_dsv41_opt"
+"$VENV/bin/pip" install -q --index-url "${PYPI:-https://pypi.org/simple}" "$REPO/vllm_dsv41_opt"
 
 pkgdir() { "$PY" -c "import $1, os; print(os.path.dirname($1.__file__))" 2>/dev/null || true; }
 
@@ -55,14 +55,14 @@ fi
 
 say "5/5  preflight"
 "$PY" "$REPO/deploy/preflight.py" --model "$MODEL" --gpus 8 --tp 8 \
-  --expert-parallel --offload-gb 12 --engram-gib 264 --block-size 64 \
-  --v41 --text-only --enforce-eager || rc=$?
+  --expert-parallel --offload-gb 11 --engram-gib 189 --exact-pinned --block-size 64 \
+  --v41 --text-only || rc=$?
 rc=${rc:-0}
 
 cat <<MSG
 
 Next:
-  MODEL=$MODEL PRESET=v41-flash $REPO/deploy/serve.sh
+  MODEL=$MODEL PRESET=v41-flash-latency $REPO/deploy/serve.sh
   $REPO/deploy/healthcheck.sh && $PY $REPO/deploy/verify.py
 
 MSG

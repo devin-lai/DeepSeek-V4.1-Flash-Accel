@@ -1,0 +1,17 @@
+{
+  "selected_log_lines": [
+    "Model loading took 25.26 GiB memory and 154.352723 seconds",
+    "Model loading took 25.26 GiB memory and 154.639799 seconds",
+    "Model loading took 25.26 GiB memory and 154.636142 seconds",
+    "Model loading took 25.26 GiB memory and 154.675869 seconds",
+    "Model loading took 25.26 GiB memory and 154.282178 seconds",
+    "Model loading took 25.26 GiB memory and 154.665778 seconds",
+    "Model loading took 25.26 GiB memory and 154.301514 seconds",
+    "Model loading took 25.26 GiB memory and 154.485506 seconds",
+    "Graph capturing finished in 59 secs, took 0.92 GiB",
+    "Available KV cache memory: 1.33 GiB",
+    "GPU KV cache size: 191,288 tokens, Maximum concurrency for 32,768 tokens per request: 5.84x",
+    "Graph capturing finished in 19 secs, took 0.39 GiB",
+    "CUDA graph pool memory: 0.39 GiB (actual), 0.94 GiB (estimated), difference: 0.55 GiB (139.3%)."
+  ]
+}

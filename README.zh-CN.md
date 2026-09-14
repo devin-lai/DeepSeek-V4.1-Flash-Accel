@@ -1,13 +1,14 @@
 # DeepSeek V4.1 Flash Accel
 
-| **输出吞吐 5.6×** | **逐 token 延迟降低 84.9%** | **8K 预填充吞吐提高 9.5%** | **8K 首 token 延迟降低 8.7%** |
-| :--- | :--- | :--- | :--- |
-| **6.0 → 33.7 token/s** · 单并发 | **159.52 → 24.04 ms** · 中位 TPOT | **2,424.0 → 2,654.5 total token/s** | **6,289.2 → 5,741.0 ms** |
-| CUDA graphs 对比同补丁 eager 模式 | 同一 CUDA graphs 对照实验 | 仅卸载解码器专家，对比默认层顺序 | 同一卸载位置对照实验 |
+| **交互输出 1.8×** | **并发总吞吐提高 55%** | **共享主机内存减少 42%** |
+| :--- | :--- | :--- |
+| **39.8 → 71.4 token/s** · 交互 c1 | **115.0 → 178.2 token/s** · 随机 c32 | **453 → 264 GiB** · 吞吐预设 |
+| 静态 DSpark 延迟预设 | 更宽的非推测批次 | 精确锁页权重分配 |
 
-**测量配置：8× RTX 5090，503 GiB 主机内存。** 记录于 2026-09-14，来自短时合成负载。
-CUDA graphs 对照使用 1,024 输入 / 128 输出 token；独立的 eager 卸载位置实验使用
-8,192 输入 / 1 输出 token、并发 2。详见[实测性能](#实测性能)。
+**8× RTX 5090 实测，对照是本项目原有的补丁版 CUDA graphs 预设。**
+每种负载运行三轮，使用相同提示词、随机种子和采样设置；模型权重与量化未修改。
+延迟预设约占 279 GiB 共享内存，还通过了 384 GiB cgroup 限额测试。
+测试在一台 503 GiB 机器上完成，属于短时复现实验。[完整数据、范围与限制](benchmarks/results/2026-09-14-v41-optimization.md)。
 
 **使用 vLLM 在 NVIDIA RTX 5090 上部署并加速 DeepSeek-V4.1-Flash。**
 
@@ -29,10 +30,10 @@ TTFT 为首 token 延迟；TPOT 为首 token 之后的平均逐 token 延迟。
 | 项目 | 当前状态 |
 | --- | --- |
 | GPU | 8× RTX 5090，每张 32 GB，SM120，PCIe Gen5 ×16，无 NVLink |
-| 主机内存 | 安装 503 GiB；运行记录中约 452 GiB 被锁页 |
+| 主机内存 | 安装 503 GiB；延迟预设约 **279 GiB 共享内存**，吞吐预设约 **264 GiB**；延迟预设还通过了 384 GiB cgroup 限额测试 |
 | 模型文件 | 约 476 GiB / 510 GB；还需为环境和缓存预留磁盘空间 |
-| 卸载 | Engram 放在 CPU；每个 GPU rank 卸载 12 GiB 解码器专家权重 |
-| 文本 | `v41-flash` 可提供服务，CUDA graphs 已启用，需应用仓库补丁 |
+| 卸载 | Engram 放在 CPU；延迟预设每 rank 卸载 11 GiB 解码器专家，吞吐预设卸载 9 GiB |
+| 文本 | `v41-flash-latency` 用于交互生成，`v41-flash-throughput` 用于并发任务；需插件 0.2.0 与仓库补丁 |
 | 图像 | `v41-flash-vision` 已通过简单图像探测，更广泛的视觉评测待补充 |
 | 上下文 | 预设为 **32,768 token**；本部署尚未验证模型宣称的 1M 上下文 |
 | 其他硬件 | 尚需独立验证；以上配置不是经过证明的最低硬件要求 |
@@ -58,14 +59,14 @@ python3 scripts/download/verify_shards.py /data/models/DeepSeek-V4.1-Flash
 
 # 安装固定版本环境、插件与补丁，并执行预检。
 # 中国大陆用户可将 PYPI 改为 https://pypi.tuna.tsinghua.edu.cn/simple。
-PYPI=https://pypi.org/simple \
+PYPI=https://pypi.tuna.tsinghua.edu.cn/simple \
   VENV=/data/venvs/vllm-dsv41 MODEL=/data/models/DeepSeek-V4.1-Flash \
   bash scripts/env/setup.sh
 source /data/venvs/vllm-dsv41/bin/activate
 
 # 前台运行文本服务，仅监听本机。
 HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
-  PRESET=v41-flash deploy/serve.sh
+  PRESET=v41-flash-latency deploy/serve.sh
 ```
 
 服务就绪后，在仓库根目录打开第二个终端：
@@ -84,6 +85,8 @@ curl -sS http://127.0.0.1:8000/v1/completions \
 请在测速前检查探测输出和保存的 JSON；通过这些基础检查不代表完整模型质量已验证。
 系统页缓存已热时，记录中的 eager 启动耗时约 285 秒；下载和首次编译另计。
 权重校验默认检查文件结构，添加 `--sha256` 可与 ModelScope 的哈希记录比较。
+并发批量任务可选 `PRESET=v41-flash-throughput`：总吞吐更高，但每个活跃请求的
+逐 token 延迟也可能增加。原 `v41-flash` 保留为对照预设。
 如需图像输入，先停止文本服务，再以 `PRESET=v41-flash-vision` 启动。
 
 [自定义路径、预设与 systemd](deploy/README.md) · [补丁检查与回滚](upstream/README.md)
@@ -119,9 +122,44 @@ vLLM 补丁在捕获后清零空 KV-cache 块，FlashInfer 补丁让被掩码的
 
 插图用于解释机制，数值结论以表格和链接的结果文件为准。
 
+### 精确锁页分配、DSpark 与并发调优
+
+插件 0.2.0 使用按内存页对齐的 CUDA 注册，避免大块权重按 2 的幂取整。
+在相同的 12 GiB/rank 专家卸载预算下，共享主机内存从约 453 降至 289 GiB。
+延迟预设启用静态 DSpark-5、缩小 CUDA graph 捕获范围并增加 GPU 权重驻留，
+共享内存约 279 GiB。吞吐预设将卸载降至 9 GiB/rank，并允许 32 个活跃序列，
+共享内存约 264 GiB。模型权重与 MXFP4 量化均未修改。
+
+SM120 的索引器后端尚不支持自适应验证；当前预设明确关闭该功能。
+384 GiB cgroup 测试在 503 GiB 机器上完成，不等于验证了一台物理 384 GiB 机器。
+详见[完整实验与原始数据](benchmarks/results/2026-09-14-v41-optimization.md)。
+
 ## 实测性能
 
-V4.1-Flash，TP8 + 专家并行，Marlin，文本模式，卸载配置如上。
+**新文本预设，三轮均值。** 除预填充一行外均为输出 token/s。
+对照为原 `v41-flash` CUDA graphs 预设，不是 eager 模式或未打补丁的上游 vLLM。
+
+| 负载 | 原预设 | 延迟预设 | 吞吐预设 |
+| --- | ---: | ---: | ---: |
+| 随机 1K / 128，c1 | 33.6 | 65.0 | 39.5 |
+| 随机 1K / 128，c8 | 91.0 | 114.4 | 113.2 |
+| 随机 1K / 128，c32 | 115.0 | 135.0 | 178.2 |
+| 8K 预填充，c2（total token/s） | 2429.8 | 2587.5 | 3008.4 |
+| 交互 / 256，c1 | 39.8 | 71.4 | 46.0 |
+| 交互 / 256，c8 | 110.7 | 155.9 | 139.7 |
+
+延迟预设适合交互生成；吞吐预设适合并发批量任务。后者在 c32 下缩短排队，
+但每个活跃请求的逐 token 延迟会增加。两者均通过 32K 和 8×8K 缓存探测，
+尚未证明完整任务质量等价或生产环境容量。
+
+[逐轮结果与请求级时间记录](benchmarks/results/2026-09-14-v41-optimization.md) ·
+[复现方法](benchmarks/README.md#repeated-optimization-measurements)。
+
+### 先前的 CUDA graphs 与卸载位置实验
+
+以下结果使用早期测试设置单独记录，不作为上方新预设表格的数值对照。
+
+V4.1-Flash，TP8 + 专家并行，Marlin，文本模式，每 rank 卸载 12 GiB 解码器专家。
 测试使用 `vllm bench serve`、随机 1,024-token 输入 / 128-token 输出、`ignore_eos`。
 
 | 客户端并发请求 | CUDA graphs 输出 token/s | eager 输出 token/s | 加速比 | CUDA graphs 中位 TTFT | CUDA graphs 中位 TPOT |
@@ -160,7 +198,8 @@ TPOT 的倒数代替。TTFT 为首 token 延迟，TPOT 为首 token 之后的平
 ## 参与研究与贡献
 
 欢迎用中文或英文提交问题、复现结果和改进。尤其需要其他 GPU 配置、
-长上下文、多图像任务、DSpark 推测解码以及流水线并行的验证。
+长上下文质量、多图像任务、SM120 自适应 DSpark 以及流水线并行的验证。
+新的文本预设已完成 32K 与 8×8K 的缓存和有限输出探测，但不是完整质量评测。
 提交性能结果时请提供模型与代码版本、启动参数、硬件、输出检查和基准文件。
 参见[贡献指南](CONTRIBUTING.md)。
 

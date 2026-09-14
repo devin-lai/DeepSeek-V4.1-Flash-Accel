@@ -20,7 +20,9 @@ EP8, because expert parallelism never splits an expert and so never pads it.
 configurable -- neither `roundup_power2_divisions` in `PYTORCH_CUDA_ALLOC_CONF`
 nor the same key in `PYTORCH_HOST_ALLOC_CONF` has any effect.  V4.1's Engram
 tables are 16 shards of 11.5 GiB, each of which consumes 16, so they cost
-264 GiB of host RAM rather than the checkpoint's 189.
+264 GiB of host RAM including scale shards rather than the checkpoint's 189.
+The opt-in exact weight allocator removes that padding; use --exact-pinned
+and --offload-gb to estimate a measured preset's chosen budget.
 
 Usage:
     python tools/plan_memory.py /path/to/DeepSeek-V4.1-Flash --tp 8 --ep
@@ -82,6 +84,11 @@ def roundup_pow2(x: float) -> float:
     return 0.0 if x <= 0 else 2.0 ** math.ceil(math.log2(x))
 
 
+def round_pinned(size: float, exact: bool) -> float:
+    # The plugin preserves the stock allocator below its 64 MiB threshold.
+    return math.ceil(size / 4096) * 4096 if exact and size >= 64 * 1024**2 else roundup_pow2(size)
+
+
 def expert_bytes_per_rank(cfg: dict, ranks: int, expert_parallel: bool,
                           backend: str, bits_per_weight: float) -> tuple[float, float]:
     """(padded, unpadded) routed-expert bytes per rank, in bytes."""
@@ -109,7 +116,8 @@ def expert_bytes_per_rank(cfg: dict, ranks: int, expert_parallel: bool,
 
 
 def pinned_offload_bytes(cfg: dict, ranks: int, expert_parallel: bool,
-                         bits_per_weight: float, budget_bytes: float):
+                         bits_per_weight: float, budget_bytes: float,
+                         exact_pinned: bool = False):
     """Host bytes a per-rank offload budget actually consumes.
 
     vLLM's UVA offloader pins one buffer per parameter, and pinned allocations
@@ -131,11 +139,14 @@ def pinned_offload_bytes(cfg: dict, ranks: int, expert_parallel: bool,
     except (KeyError, TypeError, ValueError):
         return budget_bytes, ""
 
-    per_rank_experts = experts if expert_parallel else experts
+    per_rank_experts = experts
     inter_per_rank = inter if expert_parallel else max(1, inter // ranks)
     if expert_parallel:
         per_rank_experts = max(1, experts // ranks)
-    b = bits_per_weight / 8.0
+    # The offload selection contains w13_weight/w2_weight, not their scales.
+    # MXFP4/NVFP4's 4.25/4.5 effective bits include scales that stay on GPU.
+    payload_bits = 4.0 if bits_per_weight in (4.25, 4.5) else bits_per_weight
+    b = payload_bits / 8.0
     w13 = per_rank_experts * (2 * inter_per_rank) * hidden * b
     w2 = per_rank_experts * hidden * inter_per_rank * b
 
@@ -147,7 +158,7 @@ def pinned_offload_bytes(cfg: dict, ranks: int, expert_parallel: bool,
             if spent >= budget_bytes:
                 break
             spent += size
-            pinned += roundup_pow2(size)
+            pinned += round_pinned(size, exact_pinned)
             buffers += 1
         if spent >= budget_bytes:
             break
@@ -156,7 +167,7 @@ def pinned_offload_bytes(cfg: dict, ranks: int, expert_parallel: bool,
     factor = pinned / spent if spent else 1.0
     return pinned, (f"{buffers} pinned buffers/rank, {spent / GIB:.1f} GiB of "
                     f"weights -> {pinned / GIB:.1f} GiB pinned "
-                    f"({factor:.2f}x, power-of-two rounding)")
+                    f"({factor:.2f}x, {'page' if exact_pinned else 'power-of-two'} rounding)")
 
 
 def main() -> int:
@@ -176,6 +187,10 @@ def main() -> int:
     ap.add_argument("--reserve-gib", type=float, default=4.0,
                     help="per rank for KV cache, CUDA graphs, activations, workspace")
     ap.add_argument("--engram-on-gpu", action="store_true")
+    ap.add_argument("--exact-pinned", action="store_true",
+                    help="use DSV41_EXACT_PINNED=1 weight allocation in host estimates")
+    ap.add_argument("--offload-gb", type=float,
+                    help="estimate host memory for this chosen per-rank budget")
     ap.add_argument("--no-vision", action="store_true", help="--language-model-only")
     ap.add_argument("--no-margin", action="store_true",
                     help=f"drop the measured {BACKEND_MARGIN_GIB} GiB/rank backend layout margin")
@@ -190,6 +205,7 @@ def main() -> int:
         files = sorted(set(json.load(fh)["weight_map"].values()))
 
     groups: dict[str, int] = defaultdict(int)
+    engram_buffers = []
     missing = []
     for f in files:
         p = os.path.join(args.model_dir, f)
@@ -201,7 +217,10 @@ def main() -> int:
         for k, v in hdr.items():
             if k == "__metadata__":
                 continue
-            groups[classify(k)] += v["data_offsets"][1] - v["data_offsets"][0]
+            nbytes = v["data_offsets"][1] - v["data_offsets"][0]
+            groups[classify(k)] += nbytes
+            if ".engram.embed." in k:
+                engram_buffers.append(nbytes)
 
     total = sum(groups.values())
     print(f"checkpoint: {args.model_dir}")
@@ -222,11 +241,12 @@ def main() -> int:
 
     # --- GPU side --------------------------------------------------------
     # Everything that is not a routed expert and is not offloaded to the host.
-    non_expert = total - experts_ckpt
+    # Only Engram embedding tables are offloaded; their small projections stay
+    # on GPU. The vision tower is either omitted or replicated, never sharded.
+    host_engram = sum(engram_buffers) if engram_buffers else engram
+    non_expert = total - experts_ckpt - vision
     if not args.engram_on_gpu:
-        non_expert -= engram
-    if args.no_vision:
-        non_expert -= vision
+        non_expert -= host_engram
     try:
         padded, unpadded = expert_bytes_per_rank(cfg, ranks, args.ep, args.moe_backend,
                                                  args.bits_per_weight)
@@ -236,7 +256,7 @@ def main() -> int:
 
     # The vision tower is replicated on every rank, not sharded: vLLM's
     # multimodal encoder defaults to replicate, not TP.
-    per_rank_dense = (non_expert - vision) / ranks + (0 if args.no_vision else vision)
+    per_rank_dense = non_expert / ranks + (0 if args.no_vision else vision)
 
     # Measured correction. On 8x RTX 5090 with EP8 + Marlin, V4.1-Flash reports
     # 24.09 GiB resident per rank alongside 12.39 GiB offloaded -- 36.5 GiB of
@@ -268,15 +288,24 @@ def main() -> int:
     # Engram is stored as 2 tables x ranks shards; each shard is pinned
     # separately and each rounds up to a power of two.
     shards = 2 * ranks
-    engram_shard = engram / shards if engram else 0.0
-    engram_pinned = roundup_pow2(engram_shard) * shards if engram else 0.0
+    engram_shard = host_engram / shards if host_engram else 0.0
+    def round_host(n):
+        return round_pinned(n, args.exact_pinned)
+    if engram_buffers:
+        # Weight and scale arrays are distinct allocations (16 GiB + 0.5 GiB
+        # per table per rank under the stock allocator on the reference host).
+        engram_pinned = sum(round_host(b / ranks) * ranks for b in engram_buffers)
+    else:
+        engram_pinned = round_host(engram_shard) * shards if host_engram else 0.0
     # The offloaded experts are pinned the same way, one buffer per parameter,
     # so each one rounds up too -- and they are far from powers of two. The
     # offloader walks layers in order taking `w13_weight` then `w2_weight`
     # until the budget is spent, so model exactly that sequence.
+    selected_offload = offload_needed if args.offload_gb is None else args.offload_gb
     off_per_rank_actual, off_detail = pinned_offload_bytes(cfg, ranks, args.ep,
                                                            args.bits_per_weight,
-                                                           offload_needed * GIB)
+                                                           selected_offload * GIB,
+                                                           args.exact_pinned)
     offload_pinned = off_per_rank_actual * ranks
     host_needed = (0 if args.engram_on_gpu else engram_pinned) + offload_pinned
 
@@ -292,10 +321,10 @@ def main() -> int:
 
     print("\n--- host RAM (pinned) ---")
     if engram and not args.engram_on_gpu:
-        print(f"engram: {shards} shards x {engram_shard / GIB:.2f} GiB"
-              f" -> {roundup_pow2(engram_shard) / GIB:.0f} GiB each (power-of-two rounding)"
-              f" = {engram_pinned / GIB:.0f} GiB")
-    if offload_needed > 0:
+        print(f"engram tables + scales: {host_engram / GIB:.2f} GiB payload"
+              f" -> {engram_pinned / GIB:.2f} GiB pinned"
+              f" ({'page' if args.exact_pinned else 'power-of-two'} rounding)")
+    if selected_offload > 0:
         if off_detail:
             print(f"offloaded experts: {off_detail}")
             print(f"                   x {ranks} ranks = {offload_pinned / GIB:.0f} GiB")
@@ -312,7 +341,11 @@ def main() -> int:
         print(f"fits on GPU with {usable - per_rank_weights / GIB:.1f} GiB per rank to spare; "
               "no expert offload needed")
     else:
-        print(f"needs --cpu-offload-gb {math.ceil(offload_needed * 2) / 2:.1f}  (per rank)")
+        print(f"estimated --cpu-offload-gb {math.ceil(offload_needed * 2) / 2:.1f} per rank "
+              f"with {args.reserve_gib:.1f} GiB runtime reserve")
+        if selected_offload < offload_needed:
+            print("  Chosen budget is below this reserve estimate; validate KV/cache capacity "
+                  "on the running engine. This is not a GPU fit guarantee.")
         if host_total and host_needed / GIB > host_total * 0.95:
             budget = max(0.0, (host_total * 0.95 * GIB - engram_pinned) / ranks / GIB)
             print(f"  DOES NOT FIT: {host_needed / GIB:.0f} GiB pinned on a {host_total:.0f} GiB host. "
@@ -337,10 +370,13 @@ def main() -> int:
                 "dense_gib_per_rank": per_rank_dense / GIB,
                 "usable_gib_per_rank": usable,
                 "offload_gib_per_rank": offload_needed,
+                "selected_offload_gib_per_rank": selected_offload,
+                "exact_pinned": args.exact_pinned,
                 "engram_pinned_gib": engram_pinned / GIB,
                 "host_pinned_gib": host_needed / GIB,
                 "host_total_gib": host_total,
                 "fits": ok,
+                "meets_gpu_reserve_estimate": selected_offload >= offload_needed,
             }, fh, indent=2)
         print(f"\nwrote {args.json}")
     return 0 if ok else 1

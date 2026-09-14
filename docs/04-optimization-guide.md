@@ -19,19 +19,17 @@ DRAM over RDMA.
 
 Host-side details that matter:
 
-- **Do not pass `--numa-bind`.** The obvious advice on a two-socket box is
-  wrong here, twice over. It buys nothing — a UVA read from the remote node
-  measured 51.1 GB/s against 51.3 GB/s local, a 0.4 % difference, because the
-  read is bounded by the PCIe link and not by the memory controller — and it
-  costs a worker: Engram plus offloaded experts exceed one socket's 251 GiB,
-  so the kernel OOM-kills a rank with
-  `oom-kill:constraint=CONSTRAINT_MEMORY_POLICY`. Measured end to end, it
-  changes throughput by 0.1 % (118.0 vs 117.9 tok/s) when it does not kill the
-  server.
-- Reserve host RAM: Engram + offloaded experts + a few GiB per worker. No
-  swap. Watch `/proc/meminfo` `Unevictable` (pinned pages) — and remember that
-  pinned allocations round up to a power of two, so Engram's 189 GiB of
-  tensors occupy 264 GiB of RAM.
+- Check NUMA placement under concurrent GPU load. Eight local readers reached
+  260.3 GB/s aggregate, versus 197.4 GB/s for remote readers. The old one-GPU
+  51.3/51.1 GB/s comparison missed this contention. Exact-pinned workers were
+  already allocating locally on the reference host. Strict `--numa-bind`
+  remains off in the presets because the original allocator could exhaust one
+  socket; an end-to-end gain from adding it has not been demonstrated.
+- Use `DSV41_EXACT_PINNED=1` with plugin 0.2.0 to register persistent weight
+  mappings at page granularity. Engram tables and scales occupy 188.83 GiB,
+  versus 264 GiB with PyTorch's power-of-two rounding. The same change also
+  removes expert-buffer padding. Reserve additional RAM for workers and IPC.
+  [Allocator scope and tests](../vllm_dsv41_opt/README.md).
 
 ### Spill experts, never attention
 
@@ -65,31 +63,30 @@ V4-Flash measured 55.7 against 56.1 tok/s with and without it.
 `tools/plan_memory.py` computes it from the checkpoint and your GPU size.
 Rule of thumb for MXFP4 experts: each layer holds 6.9 GiB of routed experts
 (with scales); per TP rank that is 6.9 / TP GiB. Spill the smallest number of
-layers that leaves ≥ 4 GiB per rank for KV, CUDA graphs and workspace.
+layers that leaves sufficient room for KV, CUDA graphs and workspace. The
+planner defaults to a conservative 4 GiB reserve; the measured text presets
+use smaller reserves and validate their cache capacity with actual requests.
 
 ## 2. Speculative decoding: DSpark
 
-**Untested here.** Adaptive verification requires full CUDA graphs, which were
-only made correct on sm_120 by the VL-013 / FI-004 patches, and no DSpark run
-has been measured on the reference machine since. What follows is read off the
-model's config and vLLM's implementation, not off a benchmark; the MTP row in
-the V4-Flash matrix is the only speculative-decoding *measurement* in this
-repository, and it was a losing trade against expert parallelism.
+**Static DSpark is measured and available in `v41-flash-latency`.** It uses
+five draft tokens, probabilistic draft sampling, and
+`"enable_adaptive_verification": false`. The reference SM120
+`DeepseekV41IndexerBackend` rejects device-decided query lengths required by
+adaptive verification. Full CUDA graphs alone do not make that path supported;
+do not remove the backend's support check.
 
-Decode on this model is latency-bound: 16B active parameters per token is a
-few tens of milliseconds of kernel launches, all-reduces and (if spilled)
-PCIe reads. DSpark drafts 5 tokens in one pass through 3 small blocks; each
-accepted token saves one full step. With adaptive verification the draft
-length shrinks automatically at high concurrency when verification compute
-stops being free.
+The latency preset captures at most 96 query tokens (16 sequences × 6),
+reducing graph memory, and moves another 1.3 GiB/rank of expert weights onto
+the GPUs compared with the 12 GiB preset. This is a combined configuration
+change, not an isolated measurement of DSpark's contribution. Acceptance and
+speed depend on the generated text; random-token inputs and ordinary prompts
+are reported separately in the [optimization report](../benchmarks/results/2026-09-14-v41-optimization.md).
 
-- `"num_speculative_tokens": 5` matches the trained block size
-  (`dspark_block_size = 5`). Larger values gain nothing.
-- `"draft_sample_method": "probabilistic"` for `temperature > 0` workloads
-  (the recommended sampling is T = 1.0, top-p 0.95).
-- Adaptive verification requires full CUDA graphs (no `--enforce-eager`) and
-  no pipeline parallelism.
-- Expect ~2-4 accepted tokens per step on code, less on free prose.
+DSpark uses the checkpoint's existing drafter and unchanged target weights.
+Small continuation and log-probability probes pass; full task-quality and
+stochastic-distribution equivalence remain unmeasured. Test your own prompts
+and sampling settings before drawing capacity or quality conclusions.
 
 ## 3. Parallelism on PCIe-only boxes
 

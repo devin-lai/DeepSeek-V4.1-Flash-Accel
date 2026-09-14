@@ -1,0 +1,11 @@
+{
+  "configuration": {
+    "method": "dspark",
+    "num_speculative_tokens": 5,
+    "enable_adaptive_verification": true,
+    "draft_sample_method": "probabilistic"
+  },
+  "status": "startup_failed",
+  "error": "Adaptive verification trims verification requests on device, which the DeepseekV41IndexerBackend attention backend does not support. Pass enable_adaptive_verification=false in the speculative config, or use a backend that does.",
+  "resolution": "Keep the support gate; use static verification in the measured latency preset."
+}

@@ -54,6 +54,7 @@ export TORCHINDUCTOR_CACHE_DIR="${TORCHINDUCTOR_CACHE_DIR:-/data/cache/inductor}
 export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-/data/cache/vllm}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 [ -n "${OFFLOAD_LAYERS:-}" ] && export DSV41_OFFLOAD_LAYERS="$OFFLOAD_LAYERS"
+[ -n "${EXACT_PINNED:-}" ] && export DSV41_EXACT_PINNED="$EXACT_PINNED"
 
 # shellcheck disable=SC1091
 [ -f "$VENV/bin/activate" ] && source "$VENV/bin/activate"
@@ -62,6 +63,7 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 if [ "${SKIP_PREFLIGHT:-0}" != "1" ]; then
   PF=( --model "$MODEL" --gpus "$TP" --tp "$TP" --offload-gb "$OFFLOAD_GB" )
   [ "$EXPERT_PARALLEL" = "1" ] && PF+=( --expert-parallel )
+  [ "${DSV41_EXACT_PINNED:-0}" = "1" ] && PF+=( --exact-pinned )
   [ -n "$BLOCK_SIZE" ] && PF+=( --block-size "$BLOCK_SIZE" )
   [ "$ENGRAM_OFFLOAD" = "1" ] && PF+=( --engram-gib "${ENGRAM_GIB:-264}" )
   [ "$TEXT_ONLY" = "1" ] && PF+=( --text-only )
@@ -106,14 +108,18 @@ ARGS=(
 if [ "${OFFLOAD_GB%.*}" != "0" ]; then
   ARGS+=( --cpu-offload-gb "$OFFLOAD_GB" --cpu-offload-params w13_weight w2_weight )
 fi
-# NOTE: no --numa-bind. VL-004: it OOM-kills a worker once weights are
-# host-resident, and UVA reads are NUMA-insensitive here (51.3 vs 51.1 GB/s).
+# Keep strict memory binding off: it can exhaust one socket with the stock
+# allocator. Exact-pinned workers already allocate locally on the measured
+# host. Check concurrent NUMA bandwidth and actual page placement separately.
 [ -n "${REASONING_PARSER:-}" ] && ARGS+=( --reasoning-parser "$REASONING_PARSER" )
 [ -n "${TOOL_PARSER:-}" ] && ARGS+=( --tool-call-parser "$TOOL_PARSER" --enable-auto-tool-choice )
 [ "${TEXT_ONLY:-0}" = "1" ] && ARGS+=( --language-model-only )
 # VL-013 / FI-004: the patched V4.1 presets enable CUDA graphs.
 # Eager remains available for diagnosis; dispatch and cache-layout fixes still apply.
 [ "${ENFORCE_EAGER:-0}" = "1" ] && ARGS+=( --enforce-eager )
+[ -n "${SPECULATIVE_CONFIG:-}" ] && ARGS+=( --speculative-config "$SPECULATIVE_CONFIG" )
+[ -n "${COMPILATION_CONFIG:-}" ] && ARGS+=( --compilation-config "$COMPILATION_CONFIG" )
+[ -n "${MAX_BATCHED_TOKENS:-}" ] && ARGS+=( --max-num-batched-tokens "$MAX_BATCHED_TOKENS" )
 # shellcheck disable=SC2206
 ARGS+=( ${EXTRA:-} )
 

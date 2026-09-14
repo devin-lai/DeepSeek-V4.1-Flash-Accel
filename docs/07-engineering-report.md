@@ -329,7 +329,7 @@ Moving it to the decoder half is **+9.5 % prefill throughput and −8.7 % TTFT**
 It is a CED-specific lever and worth nothing without that split — on V4-Flash,
 a plain decoder, the same restriction measured 55.7 against 56.1 tok/s.
 
-### The memory floor is real, and 12 GiB/rank is it
+### The original preset needed 12 GiB/rank
 
 | offload per rank | result |
 | ---: | --- |
@@ -337,7 +337,11 @@ a plain decoder, the same restriction measured 55.7 against 56.1 tok/s.
 | 8 GiB | `No available memory for the cache blocks` |
 | 4 GiB | CUDA OOM during weight load |
 
-`tools/plan_memory.py` predicts 12.0 for this configuration, which is the
+These are the original preset results, not a hardware lower bound. The newer
+[text presets](../deploy/README.md#choose-a-preset) change GPU utilization,
+graph capture sizes and the host allocator.
+
+`tools/plan_memory.py` predicted 12.0 for this configuration, which was the
 value that works. It gets there by counting the vision tower as replicated
 rather than sharded, and by adding a measured 1.6 GiB/rank for the MoE
 backend's repacked layout and workspaces — bytes that are not in the checkpoint
@@ -352,7 +356,7 @@ direction: it costs a five-minute boot that dies at the very end.
   how much has to live in host RAM, mostly from the checkpoint headers and
   partly from two corrections that are not in them
   ([`tools/plan_memory.py`](../tools/plan_memory.py), section 4),
-- a **fault inventory** of 18 failure modes with log signatures, and a scanner
+- a **fault inventory** of 19 failure modes with log signatures, and a scanner
   that matches a server log against them and prints the fix,
 - a **correctness gate** ([`deploy/verify.py`](../deploy/verify.py)) that fails a
   deployment producing fluent garbage, not just a dead one,
@@ -397,24 +401,24 @@ up to its tile width:
 | TP4, Marlin | 576 | 640 (1.11×) | 74.7 GiB |
 | **EP8, whole experts** | **2304** | **2304 (1.00×)** | **33.6 GiB** |
 
-**Host side — pinned allocations round up to a power of two.** Not
-configurable; `roundup_power2_divisions` in `PYTORCH_CUDA_ALLOC_CONF` and
-`PYTORCH_HOST_ALLOC_CONF` both have no effect. It applies twice:
+**Host side — the stock pinned allocator rounds to powers of two.** The
+allocator environment settings tested here did not change that behavior.
+The revised planner counts distinct weight and scale allocations:
 
-- **Engram** costs about **264 GiB**, not the checkpoint's 189. Its 16 table
-  shards (8 ranks × 2 tables) are 11.8 GiB each and round to 16, which is 256;
-  the 16 projection shards are 0.36 GiB each and round to 0.5, the remaining 8.
-- **The offload costs 1.78× its budget**, because the offloader pins one buffer
-  per parameter and expert matrices are nowhere near powers of two. A 12.3
-  GiB/rank budget is 29 buffers occupying 22.0 GiB. Summing the budget instead
-  of the buffers under-predicts total host use by about 100 GiB — 352 against
-  the 453 GiB of `Shmem` actually observed. `plan_memory.py` now walks the
-  buffers in the order the offloader takes them and reports 432, with the
-  residual being vLLM's own IPC shared memory.
+- Engram's 16 weight shards round to 16 GiB each, and its 16 FP8 scale
+  shards round to 0.5 GiB each: **264 GiB** total. Those smaller arrays are
+  scales, not projection weights.
+- A 12 GiB/rank expert budget spills whole parameters: 16 `w13_weight` plus
+  15 `w2_weight` buffers, **12.3926 GiB payload → 23.5 GiB pinned per rank**.
+  Scales stay on GPU and must not be counted toward that offload budget.
+- The total is **264 + 8 × 23.5 = 452 GiB**, matching about 453 GiB shared
+  memory once IPC is included. The earlier 29-buffer / 432 GiB estimate
+  incorrectly charged scales against the budget and is superseded.
 
-Putting both together: TP8 + Marlin needs ~22 GiB/rank offloaded, which is
-256 + 8 × 22 × 1.78 = 569 GiB of host RAM against 503 installed — it cannot
-pay for it. **EP8 needs 12 GiB/rank, which is 432, and fits.**
+Plugin 0.2.0's opt-in exact allocator removes this padding for persistent
+weights. At the same expert budget shared RAM falls to about 289 GiB; the
+new DSpark preset uses about 279 GiB. See the
+[measured optimization report](../benchmarks/results/2026-09-14-v41-optimization.md).
 
 ## 5. The V4-Flash tuning matrix
 
@@ -439,8 +443,9 @@ What it says:
   time. It is not about communication — it stops MXFP4 from padding. Turn it on.
 - **Offloading is brutal and roughly linear in offloaded bytes.** Offload only
   what you must to make the model fit.
-- **`--numa-bind` changes nothing** (118.0 vs 117.9) and OOM-kills a worker once
-  weights are host-resident. It is not a tuning knob on this box.
+- **`--numa-bind` did not improve that V4-Flash case** (118.0 vs 117.9),
+  and a separate host-heavy run OOM-killed a worker under strict binding.
+  These observations do not establish NUMA independence for other workloads.
 - **MTP speculative decoding is a losing trade against expert parallelism.**
 
 ### Host-memory access, the foundation of every offload decision
@@ -452,8 +457,10 @@ What it says:
 | pinned pages on the GPU's own NUMA node | 19 µs | 51.3 GB/s | 56.3 GB/s |
 | pinned pages on the remote node | 18 µs | 51.1 GB/s | 56.1 GB/s |
 
-Zero-copy reads reach 91 % of plain host-to-device bandwidth, and **NUMA
-placement does not matter**. Both facts are load-bearing above.
+These single-GPU reads reach 91% of plain host-to-device bandwidth. The
+conclusion previously drawn here that NUMA placement does not matter was too
+broad. Eight simultaneous readers measured 260.3 GB/s aggregate locally and
+197.4 GB/s remotely. See the [concurrent test](../benchmarks/results/2026-09-14-v41-optimization.md).
 
 ## 6. Failure modes, and what to do about them
 
@@ -493,9 +500,9 @@ The ones that cost the most time, beyond section 1:
 
 ## 7. What would change the picture
 
-- **DSpark speculative decoding.** Now that CUDA graphs are correct, adaptive
-  verification is available and unmeasured; on a box this latency-bound at
-  batch 1 it should be the next large decode win.
+- **Adaptive DSpark verification on SM120.** Static DSpark is now measured in
+  the latency preset. Adaptive verification remains blocked by the indexer
+  backend support contract; full CUDA graphs alone are insufficient.
 - **Broader vision validation.** FI-003 is patched and a simple image probe
   passes. Multi-image inputs, resolutions and representative vision tasks
   still need a validation matrix.
@@ -526,16 +533,17 @@ re-encoding them must be a no-op, and it is — `0.0000` on all three metrics.
 - **Converting MXFP4 to NVFP4 is a pure loss** — more bits, more memory, *and*
   more error, because FP8 block scales cannot represent the power-of-two scales
   MXFP4 already used.
-- **CPU experts win below about 2.1 GPUs.** Gathered expert GEMV on 2× Xeon Gold
-  6530 measured 110 GB/s against 8 × 51.3 = 410 GB/s of aggregate PCIe. That is
-  the KTransformers question settled by measurement: a good design for one or
-  two GPUs against a large host, and the wrong one here.
+- **CPU expert execution remains an alternative to benchmark end to end.**
+  Gathered expert GEMV measured 110 GB/s on the two Xeons. Multiplying the
+  single-GPU UVA result by eight overstated aggregate bandwidth: concurrent
+  local readers reached 260.3 GB/s. These different microbenchmarks do not
+  settle a serving-engine comparison or establish a GPU-count crossover.
 
 ## 9. Repository layout
 
 ```
 deploy/                         preflight, launcher, presets, healthcheck, verify, systemd, bench
-faults/inventory.toml           18 failure modes, machine-readable, with log signatures
+faults/inventory.toml           19 failure modes, machine-readable, with log signatures
 tools/faultscan.py              match a server log against them; --list, --show, --markdown
 tools/plan_memory.py            memory plan from the checkpoint headers
 tools/tiny/                     a DeepSeek-V4.1 that boots in a minute, for shape bugs

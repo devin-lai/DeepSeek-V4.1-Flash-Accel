@@ -2,6 +2,44 @@
 
 [Project overview](../README.md) · [Contributing](../CONTRIBUTING.md)
 
+## Repeated optimization measurements
+
+The [exact-pinned / DSpark report](results/2026-09-14-v41-optimization.md)
+adds repeated random-token and ordinary-prompt workloads, individual request
+timings, a concurrent NUMA experiment, and 32K/8×8K cache probes. It compares
+new presets against the previous **patched, graph-enabled** `v41-flash`
+preset. It does not use stock upstream vLLM or eager execution as the baseline.
+
+Run the same six cases after each server restart and sanity check:
+
+```bash
+python deploy/verify.py --json /data/verify.json
+python scripts/bench/v41_bench.py --dir /data/bench-latency --repeat 3 \
+  --case c1_1k_128 --case c8_1k_128 --case c32_1k_128 \
+  --case prefill_c2_8k_1 --case interactive_c1_256 --case interactive_c8_256
+python scripts/bench/context_probe.py --dir /data/context-latency
+```
+
+The interactive cases use eight original [code/prose prompts](workloads/interactive.jsonl),
+the model's chat template with thinking disabled, and 256 output tokens.
+vLLM's custom dataset loader requires `pandas` in the benchmark environment.
+The harness sets temperature 0, seeds 0/1/2, and a fresh cache salt per case;
+`ignore_eos` fixes output lengths. Each CLI invocation performs vLLM's initial
+request before timing. Record first-shape compilation separately when present.
+The script saves manifests and detailed results, refuses stale output paths,
+and fails on incomplete requests even if the vLLM CLI exits zero.
+
+For longer capacity runs, increase `--request-multiplier` and choose request
+counts and traffic patterns representative of your application. Three short
+trials are still not a production load test. The context probe puts its answer
+at the end of the prompt and checks finite log probabilities and cache shapes;
+it does not measure long-range retrieval quality.
+
+```bash
+# Dual-socket reference map; adapt --gpu-nodes for other hardware.
+python scripts/bench/numa_bandwidth.py --dir /data/numa-bench
+```
+
 ## Published V4.1 comparison
 
 | Artifact | What it contains |
