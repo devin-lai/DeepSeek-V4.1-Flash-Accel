@@ -2,6 +2,24 @@
 
 [Project overview](../README.md) · [Contributing](../CONTRIBUTING.md)
 
+## Profiles and single-trial explorations (2026-09-15)
+
+[`docs/08-pcie-bound-serving.md`](../docs/08-pcie-bound-serving.md) reads
+torch-profiler traces of a decode step and an 8K prefill and tests five
+configurations against the shipped presets, one trial each. Raw evidence is in
+[`results/2026-09-15-pcie-bound/`](results/2026-09-15-pcie-bound/): per-run
+`bench.json` and `verify.json`, the rank-0 profiler key-averages table, the
+host-read bandwidth micro-benchmark (`scripts/bench/uva_bw.cu`) and the HostAR
+plugin's call statistics. Single trials bound what those runs can claim; the
+speculative-throughput, HostAR and long-prompt rows are directions, not
+preset changes.
+
+[`results/2026-09-15-sm120-prefill-page-size.md`](results/2026-09-15-sm120-prefill-page-size.md)
+is a kernel micro-benchmark (`tools/sm120_sparse_mla/pbs_bench/`) verifying the
+FlashInfer PR #5204 review comment about runtime page sizes in the SM120 MG
+prefill kernel; its 280 timed launches are in
+[`results/2026-09-15-sm120-prefill-page-size/`](results/2026-09-15-sm120-prefill-page-size/).
+
 ## Repeated optimization measurements
 
 The [exact-pinned / DSpark report](results/2026-09-14-v41-optimization.md)

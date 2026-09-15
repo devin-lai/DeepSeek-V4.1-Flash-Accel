@@ -104,11 +104,17 @@ vLLM 补丁在捕获后清零空 KV-cache 块，FlashInfer 补丁让被掩码的
 **实测：** 单并发输出吞吐 6.0 → 33.7 token/s，中位 TPOT 159.52 → 24.04 ms。
 详见[捕获问题调查](benchmarks/results/2026-09-14-v41-cudagraphs.md)。
 
-### 2. 保留编码器专家，仅卸载部分解码器专家
+### 2. 仅卸载部分解码器专家
 
-将专家卸载限制在第 20–39 层，使第 0–19 层的编码器专家权重保留在 GPU 上。
-部分解码器专家权重和 Engram 表放在主机内存；专家计算仍在 GPU 上执行，
-通过 PCIe/UVA 读取主机权重。Engram 查询仍会访问主机内存。
+专家卸载限制在第 20–39 层。部分解码器专家权重和 Engram 表放在主机内存；
+专家计算仍在 GPU 上执行，通过 PCIe/UVA 读取主机权重。Engram 查询仍会访问主机内存。
+
+**更正（2026-09-15）：** 内核级 profile 显示第 20–39 层在每个 prefill 分块中同样会执行，
+被卸载的专家权重在每个分块都要经 PCIe 重新读取一次，因此这种放置并不能像早先文字所说的
+那样让 prefill 绕开 PCIe。读取卸载专家是本机 decode 和 prefill 的主要开销，
+详见 [docs/08-pcie-bound-serving.md](docs/08-pcie-bound-serving.md)。
+早先 eager 模式的放置实验（8K prefill 吞吐 +9.5%，4 个请求）仅作为一次测量保留，
+其解释机制有误且尚未复现。
 
 ![8 张 RTX 5090 保留编码器专家；Engram 和部分解码器专家权重位于 CPU 内存，通过 PCIe/UVA 被 GPU 读取。](docs/assets/expert-placement.webp)
 

@@ -312,8 +312,12 @@ the same cards.
 
 ### Offload the decoder half, not the encoder half
 
-CED means prefill runs layers 0-19 only, so where the offloaded experts live
-decides whether prefill touches PCIe at all. Same 12 GiB/rank budget, three
+This section assumed that CED prefill runs layers 0-19 only, so that placement
+would decide whether prefill touches PCIe. Kernel traces from 2026-09-15 show
+layers 20-39 executing on every prefill chunk with their offloaded experts
+streamed from host memory each time ([where the time goes](../docs/08-pcie-bound-serving.md)),
+so the mechanism given here was wrong; the numbers below stand as a
+four-request eager-mode measurement. Same 12 GiB/rank budget, three
 placements, each verified correct first:
 
 | placement | 8K prefill total tok/s | 8K TTFT | out tok/s @8 |

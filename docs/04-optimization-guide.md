@@ -44,19 +44,26 @@ scales stay resident.
 
 ### Spill *decoder* experts (this model only)
 
-CED means prefill runs layers 0-19 only. Spilling encoder experts makes every
-prefill chunk stream the experts of each spilled layer over PCIe; spilling
-decoder experts costs nothing during prefill and the same during decode. The
-`vllm_dsv41_opt` plugin (`DSV41_OFFLOAD_LAYERS=20-39`) implements this in one
-environment variable.
+The presets restrict offload to layers 20-39 with the `vllm_dsv41_opt` plugin
+(`DSV41_OFFLOAD_LAYERS=20-39`). The earlier version of this section claimed
+that CED prefill runs layers 0-19 only, so that spilling decoder experts would
+cost nothing during prefill. **That is not what the deployed stack does.**
+Kernel traces from 2026-09-15 show layers 20-39 executing on every prefill
+chunk, with every offloaded expert of those layers read from host memory once
+per chunk (about 0.85 GiB per layer per rank). Prefill and decode are both
+bound by these reads; see [where the time goes](08-pcie-bound-serving.md).
 
-Measured at 12 GiB/rank: **+9.5 % prefill throughput, −8.7 % TTFT on 8K
-prompts**, against vLLM's stock walk order — which spends the budget on the
-first layers and so is encoder offload by default. The control is that
-explicitly setting `0-19` reproduces the stock numbers to within 0.03 %.
+The earlier eager-mode experiment measured **+9.5 % prefill throughput and
+−8.7 % TTFT on 8K prompts** for `20-39` against vLLM's stock walk order at
+12 GiB/rank, with `0-19` reproducing the stock numbers to within 0.03 %. Keep
+it as a four-request measurement, not as a mechanism: the trace does not show
+a reason for decoder placement to beat encoder placement, and the difference
+has not been reproduced with the graph-enabled presets. What does follow from
+the trace is that the *amount* offloaded, and the prefill chunk size, are what
+move prefill.
 
-This is CED-specific. On a plain decoder the same restriction is worth nothing:
-V4-Flash measured 55.7 against 56.1 tok/s with and without it.
+On a plain decoder the restriction is worth nothing either way: V4-Flash
+measured 55.7 against 56.1 tok/s with and without it.
 
 ### How much to spill
 

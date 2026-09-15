@@ -109,11 +109,14 @@ order and spends the budget on the first ~14, which on this model is the CED
 encoder half. That is what the plugin was written to change, and it confirms
 the mechanism rather than just the outcome.
 
-**Offloading the decoder half is worth ~9 % of prefill.** +9.5 % prefill
+**Offloading the decoder half measured ~9 % better prefill here.** +9.5 % prefill
 throughput and −8.7 % TTFT on 8K prompts, −5.8 % TTFT at 8 concurrent streams.
-Under CED, prefill runs only the encoder, so keeping those layers resident
-takes PCIe out of the prefill path entirely; the decoder layers are paid for
-during decode either way.
+The explanation given at the time (CED prefill runs only the encoder, so
+resident encoder experts take PCIe out of prefill) was later contradicted by
+kernel traces: layers 20-39 also run on every prefill chunk and stream their
+offloaded experts from host memory each time
+([docs/08](../../docs/08-pcie-bound-serving.md), 2026-09-15). Treat this as a
+four-request eager-mode measurement without a confirmed mechanism.
 
 Decode moves less and less cleanly: +12.6 % at 8 streams and +7.4 % at 32, but
 −5 % at 1. Given that two runs of an identical configuration differ by more

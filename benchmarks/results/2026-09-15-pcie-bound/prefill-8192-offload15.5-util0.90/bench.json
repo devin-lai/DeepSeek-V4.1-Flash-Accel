@@ -1,0 +1,33 @@
+[
+  {
+    "name": "prefill_c2_8k_1",
+    "repeat": 1,
+    "seed": 0,
+    "in": 8192,
+    "out": 1,
+    "prompts": 4,
+    "conc": 2,
+    "out_tok_s": 0.3245739948063857,
+    "total_tok_s": 2659.2347394487183,
+    "ttft_ms": 6035.050695412792,
+    "tpot_ms": 0.0,
+    "completed": 4,
+    "failed": 0
+  },
+  {
+    "name": "interactive_c1_256",
+    "repeat": 1,
+    "seed": 0,
+    "in": "variable",
+    "out": 256,
+    "prompts": 8,
+    "conc": 1,
+    "out_tok_s": 53.32233479234041,
+    "total_tok_s": 67.30382589755858,
+    "ttft_ms": 316.3412095163949,
+    "tpot_ms": 17.190321097972202,
+    "completed": 8,
+    "failed": 0,
+    "acceptance_length": 3.1558641975308643
+  }
+]

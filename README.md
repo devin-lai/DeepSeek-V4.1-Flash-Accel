@@ -124,6 +124,11 @@ validate file structure; add `--sha256` for comparison with ModelScope hashes.
 
 ## How the optimizations work
 
+Kernel-level profiles taken on 2026-09-15 show that both decode and prefill on
+this machine are bound by reading offloaded expert weights over PCIe, not by
+compute: see [where the time goes](docs/08-pcie-bound-serving.md) for the
+measured cost model, the levers that were tried, and which presets to use.
+
 ### 1. Remove host padding and tune the decode batch
 
 The exact allocator replaces power-of-two rounding with page-rounded CUDA
@@ -162,18 +167,21 @@ median time per output token (TPOT) falls from 159.52 to 24.04 ms.
 [Patch details](upstream/README.md) ·
 [Capture investigation](benchmarks/results/2026-09-14-v41-cudagraphs.md)
 
-### 3. Offload decoder experts; keep encoder experts resident
+### 3. Offload decoder experts; keep the rest resident
 
-V4.1's causal encoder-decoder structure makes placement matter. Restricting
-expert offload to layers 20–39 keeps encoder expert weights on the GPUs during
-prefill. Selected decoder expert weights and the Engram table reside in CPU
-RAM; expert computation remains on the GPUs, with host memory accessed over
-PCIe. Engram lookups still use host memory.
+Expert offload is restricted to layers 20–39. Selected decoder expert weights
+and the Engram table reside in CPU RAM; expert computation remains on the
+GPUs, with host memory accessed over PCIe. Engram lookups still use host memory.
 
 ![Eight RTX 5090 GPUs keep encoder experts in layers 0–19 resident. Selected decoder experts from layers 20–39 and Engram live in CPU RAM; decoder computation reads host-resident weights over PCIe/UVA.](docs/assets/expert-placement.webp)
 
-**Earlier placement experiment:** 9.5% higher 8K prefill throughput and 8.7% lower time to
-first token (TTFT) in a separate eager-mode placement experiment.
+**Correction (2026-09-15):** kernel traces show that layers 20–39 also execute
+on every prefill chunk, so this placement does not take PCIe out of the
+prefill path as earlier text here claimed. Reading offloaded experts over PCIe
+is the dominant cost of both decode and prefill on this machine; see
+[where the time goes](docs/08-pcie-bound-serving.md). The earlier eager-mode
+placement experiment (+9.5% 8K prefill throughput, four requests) is kept as a
+measurement, but its stated mechanism was wrong and it has not been reproduced.
 [Placement measurements](benchmarks/results/2026-09-14-v41-first-serve.md#where-the-offloaded-experts-should-live)
 
 Two further changes help the checkpoint fit:

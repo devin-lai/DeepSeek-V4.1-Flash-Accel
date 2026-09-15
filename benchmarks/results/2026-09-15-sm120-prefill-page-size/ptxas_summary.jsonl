@@ -1,0 +1,91 @@
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 32, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 32, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 32, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode0", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 32, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode1_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode1_io48_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode1_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 8, "spill_st": 8, "spill_ld": 8, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 8, "spill_st": 8, "spill_ld": 8, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 8, "spill_st": 8, "spill_ld": 8, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 8, "spill_ld": 20, "regs": 168}
+{"variant": "mode2_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 8, "spill_ld": 20, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode2", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode3_io40_math224", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode3", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "mode3_xrt", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 8, "spill_st": 4, "spill_ld": 8, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 64, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 32, 128, 32, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 64, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_dual_kernel<DSV4, BF16, 8, 128, 32, 64, 1>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 128, 2048, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 64, 2048, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 64, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, FP8, 32, 512, 32, 2>", "stack": 0, "spill_st": 0, "spill_ld": 0, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 16, 128, 32, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 64, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}
+{"variant": "pristine", "kernel": "void sparse_mla_prefill_mg_kernel<DSV4, BF16, 8, 128, 32, 1>", "stack": 16, "spill_st": 12, "spill_ld": 24, "regs": 168}

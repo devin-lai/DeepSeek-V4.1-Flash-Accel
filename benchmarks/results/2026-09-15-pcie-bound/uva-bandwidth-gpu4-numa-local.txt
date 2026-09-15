@@ -1,0 +1,13 @@
+device 0 NVIDIA GeForce RTX 5090 D, buffer 1024 MiB, iters 5
+A  UVA read  LDG.128   grid=  340 x256      20.92 ms    51.3 GB/s
+A  UVA read  LDG.128   grid=  680 x256      20.92 ms    51.3 GB/s
+A  UVA read  LDG.128   grid= 1360 x256      20.92 ms    51.3 GB/s
+A2 UVA copy  LDG/STG   grid=  680 x256      20.92 ms    51.3 GB/s
+A2 UVA copy  LDG/STG   grid= 1360 x256      20.92 ms    51.3 GB/s
+B  UVA copy  TMA bulk  grid=  170 x32 x16KBx4    20.92 ms    51.3 GB/s
+B  UVA copy  TMA bulk  grid=  340 x32 x16KBx4    20.92 ms    51.3 GB/s
+B  UVA copy  TMA bulk  grid=  680 x32 x16KBx4    20.92 ms    51.3 GB/s
+B  UVA copy  TMA bulk  grid= 1360 x32 x16KBx4    20.92 ms    51.3 GB/s
+C  memcpyAsync H2D whole buffer               19.03 ms    56.4 GB/s
+D  memcpyAsync H2D 60 x 17.7MB slices          26.52 ms    40.0 GB/s
+copy check: 0 bad pages of 256

@@ -70,10 +70,13 @@ Pipeline parallelism is blocked in the pinned stack by the
 
 The UVA offloader walks layers in order and offloads matching parameters until
 the byte budget is exhausted, so a plain `--cpu-offload-gb` spills the
-*encoder's* first ~14 layers of experts. Under CED, prefill runs **only the
-encoder**, so those layers see every prompt token and stream their experts over
-PCIe on every prefill chunk. The decoder layers (20-39) are paid for during
-decode either way.
+*encoder's* first ~14 layers of experts. This section originally argued that
+CED prefill runs only the encoder, so spilling decoder layers would keep
+prefill off PCIe. Kernel traces taken on 2026-09-15 show otherwise: layers
+20-39 run on every prefill chunk and their offloaded experts are streamed over
+PCIe once per chunk. Both placements pay the same PCIe bill during prefill and
+during decode; see [where the time goes](08-pcie-bound-serving.md). The table
+below is therefore a measurement without a confirmed mechanism.
 
 Measured three ways at the same 12 GiB/rank budget, everything else identical:
 
