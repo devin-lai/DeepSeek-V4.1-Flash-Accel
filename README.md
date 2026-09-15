@@ -4,6 +4,40 @@
 Tuned vLLM presets, CPU offload, and the patches needed to serve on consumer
 Blackwell over PCIe, with an OpenAI-compatible API. No NVLink required.
 
+## Further optimization: 2026-09-15
+
+Three-trial comparisons against the previous optimized presets on the same
+8× RTX 5090 D server, with the checkpoint and quantization preserved:
+
+| Workload | Previous optimized preset | New preset | Change |
+| --- | ---: | ---: | ---: |
+| Short interactive, concurrency 1 | 69.86 output tok/s | **74.75** · fast | **+7.0%** |
+| Short interactive, concurrency 8 | 153.05 output tok/s | **168.49** · fast | **+10.1%** |
+| 1K input / 128 output, concurrency 64 | 176.96 output tok/s | **217.55** · batch | **+22.9%** |
+| 8K prefill, concurrency 2 | 3,004.34 total tok/s | **4,077.99** · batch | **+35.7%** |
+
+Choose a preset for the workload:
+
+- **[`v41-flash-fast`](deploy/presets/v41-flash-fast.env):** short interactive
+  requests. More expert weights stay on GPU, with eight active sequences and
+  a fixed 256 MiB/rank KV cache. Single-request first-token latency rises by
+  about 43 ms, while overall output improves.
+- **[`v41-flash-balanced`](deploy/presets/v41-flash-balanced.env):** the previous
+  16-sequence DSpark preset plus exact prefill staging. Its 8K prefill improves
+  by 36.5%, with overlapping decode trial ranges.
+- **[`v41-flash-batch`](deploy/presets/v41-flash-batch.env):** 64 active sequences
+  and exact prefill staging. At concurrency 64, median first-token latency
+  falls by 81.5%, but per-token latency rises by 41% and p99 completion latency
+  by 16%. Choose it for aggregate output.
+
+The fast and batch configurations each matched the baseline's **126/128**
+on a fixed GSM8K subset and passed 32K / eight-concurrent-8K cache probes.
+Staging passed fixed-input bitwise kernel checks. These are bounded regression
+checks, not full-model quality equivalence or a long-duration load test.
+[Full results, raw traces, precision checks and rejected approaches](benchmarks/results/2026-09-15-staging-and-batching.md).
+
+## Earlier allocator and DSpark results
+
 | **1.93× single-request generation** | **55% higher batch throughput** | **42% less shared host RAM** |
 | :--- | :--- | :--- |
 | **33.6 → 65.0 tok/s** | **115.0 → 178.2 tok/s** | **453 → 264 GiB** |
@@ -24,7 +58,7 @@ zero failures**. Shared RAM is a startup measurement, not total required RAM.
 
 [Quickstart](#quickstart) · [Benchmarks](#measured-performance) · [How it works](#how-the-optimizations-work) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
 
-## What changed
+## Earlier implementation changes
 
 - **Recover host RAM lost to allocator padding.** Page-rounded pinned weight
   buffers replace power-of-two allocations, recovering about **164 GiB at the
@@ -37,10 +71,9 @@ zero failures**. Shared RAM is a startup measurement, not total required RAM.
   preset lowers expert offload from 12 to 9 GiB/rank and allows 32 active
   sequences, delivering **178.2 output tok/s** on the concurrent workload.
 
-Start with **[`v41-flash-latency`](deploy/presets/v41-flash-latency.env)** for
-interactive use. Choose **[`v41-flash-throughput`](deploy/presets/v41-flash-throughput.env)**
-for batch work; it improves aggregate throughput while increasing per-request
-token latency at 32 concurrent requests. Both build on the repository's
+The earlier **[`v41-flash-latency`](deploy/presets/v41-flash-latency.env)** and
+**[`v41-flash-throughput`](deploy/presets/v41-flash-throughput.env)** presets
+remain available as reproduction baselines. All new presets build on the
 [CUDA graph fixes and decoder-only expert offload](#how-the-optimizations-work).
 
 An independent community project for [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash),
@@ -54,9 +87,9 @@ with or endorsed by DeepSeek.
 | Resource | Reference deployment |
 | --- | --- |
 | GPU | **8× RTX 5090, 32 GB each**, SM120, PCIe Gen5 ×16, no NVLink |
-| Host RAM | **503 GiB installed**; approximately **279 GiB shared** with the latency preset or **264 GiB** with throughput. Latency also tested under a 384 GiB cgroup cap. |
+| Host RAM | **503 GiB installed**; earlier presets measured about **264–279 GiB shared**. The earlier latency preset was also tested under a 384 GiB cgroup cap. |
 | Checkpoint | Approximately **476 GiB / 510 GB**, plus space for the environment and caches |
-| Placement | Engram on CPU; 11 GiB/rank decoder offload for latency, 9 GiB/rank for throughput; TP8 + expert parallelism |
+| Placement | Engram on CPU; 9–11 GiB/rank requested decoder offload, depending on the preset; TP8 + expert parallelism |
 | Context | **32,768 tokens** in the serving presets; the model's advertised 1M context is untested here |
 | Text / images | Text benchmarked; simple image probe recorded; broader quality evaluation remains open |
 | Stack | vLLM `8c1d1c2974ee42757ee2e93cc898932edfd9d265` + repository patches, FlashInfer `0.6.18.post1`, PyTorch 2.13 + cu130, CUDA 13.2 toolkit, driver 595.71.05 |
@@ -88,7 +121,7 @@ source /data/venvs/vllm-dsv41/bin/activate
 
 # Start text serving in the foreground, listening locally.
 HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
-  PRESET=v41-flash-latency deploy/serve.sh
+  PRESET=v41-flash-fast deploy/serve.sh
 ```
 
 For mainland China, set `PYPI=https://pypi.tuna.tsinghua.edu.cn/simple` during
@@ -110,7 +143,7 @@ curl -sS http://127.0.0.1:8000/v1/completions \
 Inspect the probe output and saved JSON before benchmarking. These are sanity
 checks; a passing verdict alone does not establish model quality.
 
-Use `PRESET=v41-flash-throughput` for concurrent batch work; its wider batch
+Use `PRESET=v41-flash-batch` for concurrent batch work; its wider batch
 increases aggregate throughput while trading per-request token latency. The
 previous `v41-flash` preset remains available as a reproduction baseline.
 For image inputs, stop the text server and restart with

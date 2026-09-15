@@ -1,0 +1,578 @@
+[
+  {
+    "projection": "gate_up",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 1.8462719917297363,
+    "trials_ms": [
+      1.8462719917297363
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.119168281555176,
+    "trials_ms": [
+      10.119168281555176
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.08396799862384796,
+    "trials_ms": [
+      0.08396799862384796
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 5.751808166503906,
+    "trials_ms": [
+      5.751808166503906
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.244095802307129,
+    "trials_ms": [
+      10.244095802307129
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.21503999829292297,
+    "trials_ms": [
+      0.21503999829292297
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 9.884672164916992,
+    "trials_ms": [
+      9.884672164916992
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.391551971435547,
+    "trials_ms": [
+      10.391551971435547
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.35836800932884216,
+    "trials_ms": [
+      0.35836800932884216
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 11.269696235656738,
+    "trials_ms": [
+      11.269696235656738
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.422304153442383,
+    "trials_ms": [
+      10.422304153442383
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.3911679983139038,
+    "trials_ms": [
+      0.3911679983139038
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 11.03974437713623,
+    "trials_ms": [
+      11.03974437713623
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.420191764831543,
+    "trials_ms": [
+      10.420191764831543
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.39526399970054626,
+    "trials_ms": [
+      0.39526399970054626
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 11.266048431396484,
+    "trials_ms": [
+      11.266048431396484
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.608672142028809,
+    "trials_ms": [
+      10.608672142028809
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.5509439706802368,
+    "trials_ms": [
+      0.5509439706802368
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 15.501312255859375,
+    "trials_ms": [
+      15.501312255859375
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 10.943488121032715,
+    "trials_ms": [
+      10.943488121032715
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 0.896992027759552,
+    "trials_ms": [
+      0.896992027759552
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "uva",
+    "median_ms": 32.659454345703125,
+    "trials_ms": [
+      32.659454345703125
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "staged",
+    "median_ms": 11.70025634765625,
+    "trials_ms": [
+      11.70025634765625
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "gate_up",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 566231040,
+    "kind": "resident",
+    "median_ms": 1.6537599563598633,
+    "trials_ms": [
+      1.6537599563598633
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 0.4689919948577881,
+    "trials_ms": [
+      0.4689919948577881
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.06060791015625,
+    "trials_ms": [
+      5.06060791015625
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 6,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.02457600086927414,
+    "trials_ms": [
+      0.02457600086927414
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 2.76582407951355,
+    "trials_ms": [
+      2.76582407951355
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.128191947937012,
+    "trials_ms": [
+      5.128191947937012
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 32,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.11264000087976456,
+    "trials_ms": [
+      0.11264000087976456
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 4.831232070922852,
+    "trials_ms": [
+      4.831232070922852
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.197824001312256,
+    "trials_ms": [
+      5.197824001312256
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 128,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.18435199558734894,
+    "trials_ms": [
+      0.18435199558734894
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 5.635039806365967,
+    "trials_ms": [
+      5.635039806365967
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.2203521728515625,
+    "trials_ms": [
+      5.2203521728515625
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 256,
+    "block_m": 8,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.20684799551963806,
+    "trials_ms": [
+      0.20684799551963806
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 5.52342414855957,
+    "trials_ms": [
+      5.52342414855957
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.22649621963501,
+    "trials_ms": [
+      5.22649621963501
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 512,
+    "block_m": 16,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.21299199759960175,
+    "trials_ms": [
+      0.21299199759960175
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 5.5234880447387695,
+    "trials_ms": [
+      5.5234880447387695
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.320703983306885,
+    "trials_ms": [
+      5.320703983306885
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 2048,
+    "block_m": 48,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.28672000765800476,
+    "trials_ms": [
+      0.28672000765800476
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 9.09721565246582,
+    "trials_ms": [
+      9.09721565246582
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.571584224700928,
+    "trials_ms": [
+      5.571584224700928
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 4096,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.5386239886283875,
+    "trials_ms": [
+      0.5386239886283875
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "uva",
+    "median_ms": 16.141311645507812,
+    "trials_ms": [
+      16.141311645507812
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "staged",
+    "median_ms": 5.902304172515869,
+    "trials_ms": [
+      5.902304172515869
+    ],
+    "bitwise_equal": true
+  },
+  {
+    "projection": "down",
+    "tokens": 8192,
+    "block_m": 64,
+    "weight_bytes": 283115520,
+    "kind": "resident",
+    "median_ms": 0.8724799752235413,
+    "trials_ms": [
+      0.8724799752235413
+    ],
+    "bitwise_equal": true
+  }
+]

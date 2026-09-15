@@ -14,7 +14,7 @@ Run from the repository root:
 ```bash
 source /data/venvs/vllm-dsv41/bin/activate
 HOST=127.0.0.1 MODEL=/data/models/DeepSeek-V4.1-Flash \
-  PRESET=v41-flash-latency deploy/serve.sh
+  PRESET=v41-flash-fast deploy/serve.sh
 ```
 
 The launcher runs preflight, starts vLLM in the foreground, and saves logs
@@ -39,7 +39,10 @@ identify the incorrect-output faults documented in the inventory.
 
 | Preset | Model and purpose |
 | --- | --- |
-| `v41-flash-latency` | Text, exact host allocation, static DSpark-5, 11 GiB/rank offload, 16 active sequences |
+| `v41-flash-fast` | Short text requests: static DSpark-5, 9.75 GiB/rank requested offload, 8 active sequences, fixed 256 MiB/rank KV cache |
+| `v41-flash-balanced` | Longer prompts: previous 16-sequence DSpark preset plus exact prefill staging |
+| `v41-flash-batch` | Aggregate throughput: 64 active sequences, 9 GiB/rank offload and exact prefill staging |
+| `v41-flash-latency` | Previous text latency reference: exact host allocation, static DSpark-5, 11 GiB/rank offload, 16 active sequences |
 | `v41-flash-throughput` | Text, exact host allocation, 9 GiB/rank offload, 32 active sequences; higher aggregate throughput |
 | `v41-flash` | Previous text reference, stock host allocator, 12 GiB/rank offload, 16 active sequences |
 | `v41-flash-vision` | V4.1-Flash images and text, same context cap; simple image probe recorded |
@@ -50,8 +53,8 @@ The FI-003 FlashInfer patch is required. Vision throughput and broader quality
 have not been evaluated.
 
 All V4.1 presets use TP8 + expert parallelism, Marlin, CPU Engram, and expert
-weights offloaded from decoder layers 20–39. The new text presets require
-plugin 0.2.0; upgrade an existing install with `uv pip install --python
+weights offloaded from decoder layers 20–39. Staging presets require
+plugin 0.3.0; upgrade an existing install with `uv pip install --python
 /data/venvs/vllm-dsv41/bin/python ./vllm_dsv41_opt`. They retain the original
 checkpoint and quantization. Approximate shared host memory is 279 GiB for
 latency, 264 GiB for throughput, and 453 GiB for the old reference. This is
@@ -63,9 +66,25 @@ See the [patch guide](../upstream/README.md) to inspect or revert them.
 
 The launcher defaults to the earlier V4 `default` preset for compatibility.
 Always specify a `v41-flash*` preset for this project's main model. Start with
-`v41-flash-latency` for interactive text and `v41-flash-throughput` for
-concurrent batch work. The new 0.95 GPU utilization settings leave less
-headroom than the old preset; other GPU consumers can prevent startup.
+`v41-flash-fast` for short interactive text, `v41-flash-balanced` for longer
+prompts, and `v41-flash-batch` for aggregate batch work. Read the
+[follow-up results](../benchmarks/results/2026-09-15-staging-and-batching.md):
+the fast preset adds about 43 ms to single-request TTFT while improving output;
+the batch preset increases per-token and p99 latency at concurrency 64.
+
+The fast preset explicitly reserves 256 MiB/rank for KV cache. This skips the
+automatic KV memory profile and takes precedence over GPU utilization. Its
+reported capacity is 35,852 tokens, sufficient for one full 32K request;
+other requests can wait for space. The 32K and eight-concurrent-8K probes
+passed, with zero preemptions. Recheck capacity after changing hardware,
+stack or workload. Staging is disabled in this preset to keep memory for weights.
+
+The staging presets copy one packed expert projection at a time for eager
+batches of at least 256 query tokens. Small decode batches keep direct UVA
+access. If allocation fails, the plugin logs the first fallback per worker
+and runs the original GEMM. That preserves execution but can remove the
+speedup: increasing the batch preset's utilization from 0.95 to 0.96 caused
+fallbacks on this host. Keep the measured memory headroom.
 
 ## Local configuration
 
@@ -75,6 +94,8 @@ headroom than the old preset; other GPU consumers can prevent startup.
 | `VENV` | `/data/venvs/vllm-dsv41` | Installed Python environment |
 | `HOST`, `PORT` | `0.0.0.0`, `8000` | Listening address and port |
 | `LOG_DIR` | `/data/logs` | Server logs |
+| `KV_CACHE_MEMORY_BYTES` | Set by the fast preset | Explicit per-GPU KV reservation; overrides automatic KV profiling |
+| `MARLIN_STAGE_MIN_TOKENS` | Set by staging presets | Query-token threshold for exact temporary weight staging |
 | `CUDA_HOME` | Detected under `/usr/local/cuda*` | CUDA toolkit |
 
 Use `HOST=127.0.0.1` for local access. Binding all interfaces exposes an

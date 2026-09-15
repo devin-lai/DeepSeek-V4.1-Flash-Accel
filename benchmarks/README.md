@@ -2,6 +2,46 @@
 
 [Project overview](../README.md) · [Contributing](../CONTRIBUTING.md)
 
+## Exact staging and further serving tuning (2026-09-15)
+
+The [follow-up report](results/2026-09-15-staging-and-batching.md) measures
+packed expert-weight staging against the previous latency preset, with
+three trials per case and raw request traces. It also records kernel parity
+checks, quality probes, and rejected memory configurations. The fast preset
+uses a fixed KV budget; balanced and batch enable staging. See the report
+for first-token, per-token and tail-latency tradeoffs.
+
+```bash
+DSV41_MARLIN_STAGE_MIN_TOKENS=256 PRESET=v41-flash-latency deploy/serve.sh
+# Run benchmarks in a separate shell after startup and sanity checks.
+python scripts/bench/v41_bench.py --dir /data/staging-bench --repeat 3 \
+  --case interactive_c1_256 --case interactive_c8_256 --case prefill_c2_8k_1
+python scripts/bench/v41_quality.py --out /data/staging-quality.json
+```
+
+For wider-batch comparisons the harness additionally accepts `c64_1k_128`
+(128 requests / concurrency 64) and `c128_1k_128` (256 / 128), with the same
+1K input and 128-token output lengths. `prefill_c1_16k_1` runs four sequential
+16K prompts with one output token. These are opt-in cases, not new defaults.
+
+For a larger paired quality screen, download the original GSM8K test file
+separately and run the same subset against each configuration:
+
+```bash
+curl -fL https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl \
+  -o /data/gsm8k-test.jsonl
+python scripts/bench/gsm8k_compare.py --dataset /data/gsm8k-test.jsonl \
+  --out /data/gsm8k-baseline.json
+python scripts/bench/context_probe.py --dir /data/context-baseline
+```
+
+The harness verifies the dataset SHA-256, selects 128 test rows with seed
+20260915, and uses zero-shot prompts, thinking disabled, temperature zero,
+512 output tokens and concurrency eight. It records the row IDs and every
+answer, including errors and truncations. This is a reproducible regression
+subset, not the full GSM8K leaderboard protocol. See the
+[source and license](../THIRD_PARTY_NOTICES.md).
+
 ## Profiles and single-trial explorations (2026-09-15)
 
 [`docs/08-pcie-bound-serving.md`](../docs/08-pcie-bound-serving.md) reads

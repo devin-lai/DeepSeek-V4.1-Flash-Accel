@@ -1,0 +1,1 @@
+[{"name":"interactive_c1_256","repeat":1,"seed":0,"in":"variable","out":256,"prompts":8,"conc":1,"out_tok_s":74.40995819760082,"total_tok_s":93.92077243203033,"ttft_ms":271.58716693520546,"tpot_ms":12.681198103910349,"completed":8,"failed":0,"acceptance_length":3.2646592709984152}]

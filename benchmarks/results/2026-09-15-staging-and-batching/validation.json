@@ -1,0 +1,30 @@
+{
+  "gpu_unit_tests": {
+    "command": "python -m pytest vllm_dsv41_opt/tests -q",
+    "passed": 15,
+    "duration_s": 34.04,
+    "scope": "CUDA allocator and staging, allocation fallback, eager and graph routing counts, worker RPC snapshot/reset of inference tensors; run while serving was stopped",
+    "upstream_deprecation_warnings": 14
+  },
+  "kernel_parity": {
+    "timed_combinations": 48,
+    "timed_trials_per_combination": 7,
+    "comparison": "BF16 numerical equality at zero absolute and relative tolerance",
+    "raw": "marlin-staging.json"
+  },
+  "kernel_bitwise_followup": {
+    "combinations": 48,
+    "all_bitwise_equal": true,
+    "comparison": "torch.equal on int16 views of BF16 storage",
+    "raw": "marlin-bitwise.json"
+  },
+  "cpu_tests": {
+    "benchmark_harness": 3,
+    "memory_planner": 2
+  },
+  "claims_limit": "Fixed-input kernel equality and small model regression screens do not establish full-model equivalence or long-duration reliability.",
+  "public_selective_script_smoke": {
+    "command": "python scripts/bench/marlin_selective.py --tokens 6 --trials 1 --out result.json",
+    "bitwise_checks_passed": 6
+  }
+}

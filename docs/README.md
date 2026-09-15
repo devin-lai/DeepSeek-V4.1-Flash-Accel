@@ -6,7 +6,8 @@ Start with the [quickstart](../README.md#quickstart) and
 
 | Guide | Purpose |
 | --- | --- |
-| [New text presets](../benchmarks/results/2026-09-14-v41-optimization.md) | Exact host allocation, static DSpark, wider batching, repeated trials and raw timings |
+| [Further serving optimization](../benchmarks/results/2026-09-15-staging-and-batching.md) | Fixed KV budget for faster decode, exact prefill staging, wider batches, quality checks and rejected approaches |
+| [Earlier text presets](../benchmarks/results/2026-09-14-v41-optimization.md) | Exact host allocation, static DSpark, wider batching, repeated trials and raw timings |
 | [Where the time goes](08-pcie-bound-serving.md) | Kernel-level profile of decode and prefill; the PCIe cost model behind every preset choice; levers tried on 2026-09-15 |
 | [Runtime page size in the MG prefill kernel](../benchmarks/results/2026-09-15-sm120-prefill-page-size.md) | Micro-benchmark verifying the FlashInfer PR #5204 review comment on SM120 |
 | [Benchmarks](../benchmarks/README.md) | Saved evidence, comparison scope, and reproduction commands |

@@ -3,9 +3,13 @@
 Registered through vllm.general_plugins in every vLLM process:
 
 * DSV41_SINGLE_COPY=1 (default): allocate pinned host weight buffers directly.
-* DSV41_OFFLOAD_LAYERS=20-39: keep CED encoder experts resident during prefill.
+* DSV41_OFFLOAD_LAYERS=20-39: restrict expert offload to selected layers.
 * DSV41_EXACT_PINNED=1 (opt-in): replace power-of-two host allocation rounding
   with page-rounded CUDA registration for persistent weights, including Engram.
+* DSV41_MARLIN_STAGE_MIN_TOKENS=256 (opt-in): stage immutable packed expert
+  matrices for large eager batches while keeping small decode batches on UVA.
+* DSV41_ROUTING_PROFILE=/data/routing.json (diagnostic): count selected experts;
+  snapshot/reset through the optional worker extension RPC, as in the README.
 
 No installed vLLM source files are changed. The hooks require the recorded
 vLLM version; see the package README for supported paths and GPU tests.
@@ -56,6 +60,17 @@ def register() -> None:
 
     # Log under the "vllm." namespace: vLLM only attaches handlers there.
     logger = init_logger("vllm.dsv41_opt")
+
+    if profile_path := os.environ.get("DSV41_ROUTING_PROFILE"):
+        from .routing_profile import install_routing_profile
+
+        install_routing_profile(profile_path)
+
+    staging_tokens = int(os.environ.get("DSV41_MARLIN_STAGE_MIN_TOKENS", "0"))
+    if staging_tokens:
+        from .staging import install_marlin_staging
+
+        install_marlin_staging(staging_tokens)
 
     spec = os.environ.get("DSV41_OFFLOAD_LAYERS", "").strip()
     allowed = parse_layer_set(spec) if spec else None

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vllm-dsv41-opt"
-version = "0.2.0"
-description = "vLLM plugin: exact pinned weight allocation and layer-aware UVA offload for DeepSeek-V4.1-Flash"
+version = "0.3.0"
+description = "vLLM plugin: exact pinned allocation, selective UVA offload, and Marlin weight staging for DeepSeek-V4.1-Flash"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

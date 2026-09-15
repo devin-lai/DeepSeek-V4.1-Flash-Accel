@@ -55,6 +55,7 @@ export VLLM_CACHE_ROOT="${VLLM_CACHE_ROOT:-/data/cache/vllm}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-8}"
 [ -n "${OFFLOAD_LAYERS:-}" ] && export DSV41_OFFLOAD_LAYERS="$OFFLOAD_LAYERS"
 [ -n "${EXACT_PINNED:-}" ] && export DSV41_EXACT_PINNED="$EXACT_PINNED"
+[ -n "${MARLIN_STAGE_MIN_TOKENS:-}" ] && export DSV41_MARLIN_STAGE_MIN_TOKENS="$MARLIN_STAGE_MIN_TOKENS"
 
 # shellcheck disable=SC1091
 [ -f "$VENV/bin/activate" ] && source "$VENV/bin/activate"
@@ -64,6 +65,7 @@ if [ "${SKIP_PREFLIGHT:-0}" != "1" ]; then
   PF=( --model "$MODEL" --gpus "$TP" --tp "$TP" --offload-gb "$OFFLOAD_GB" )
   [ "$EXPERT_PARALLEL" = "1" ] && PF+=( --expert-parallel )
   [ "${DSV41_EXACT_PINNED:-0}" = "1" ] && PF+=( --exact-pinned )
+  [ "${DSV41_MARLIN_STAGE_MIN_TOKENS:-0}" != "0" ] && PF+=( --marlin-staging )
   [ -n "$BLOCK_SIZE" ] && PF+=( --block-size "$BLOCK_SIZE" )
   [ "$ENGRAM_OFFLOAD" = "1" ] && PF+=( --engram-gib "${ENGRAM_GIB:-264}" )
   [ "$TEXT_ONLY" = "1" ] && PF+=( --text-only )
@@ -120,6 +122,7 @@ fi
 [ -n "${SPECULATIVE_CONFIG:-}" ] && ARGS+=( --speculative-config "$SPECULATIVE_CONFIG" )
 [ -n "${COMPILATION_CONFIG:-}" ] && ARGS+=( --compilation-config "$COMPILATION_CONFIG" )
 [ -n "${MAX_BATCHED_TOKENS:-}" ] && ARGS+=( --max-num-batched-tokens "$MAX_BATCHED_TOKENS" )
+[ -n "${KV_CACHE_MEMORY_BYTES:-}" ] && ARGS+=( --kv-cache-memory-bytes "$KV_CACHE_MEMORY_BYTES" )
 # shellcheck disable=SC2206
 ARGS+=( ${EXTRA:-} )
 

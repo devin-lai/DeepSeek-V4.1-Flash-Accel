@@ -6,6 +6,11 @@ measured on the reference machine with the shipped `v41-flash-latency` and
 benchmark case unless stated). Numbers are from the raw evidence in
 [`benchmarks/results/2026-09-15-pcie-bound`](../benchmarks/results/2026-09-15-pcie-bound/).
 
+Follow-up: [exact weight staging](../benchmarks/results/2026-09-15-staging-and-batching.md)
+improved 8K prefill by 36.5% across three trials while preserving packed weights
+and Marlin arithmetic. It revises the transfer-only conclusion below by
+reducing repeated reads within a GEMM.
+
 ## 1. A decode step, kernel by kernel
 
 Single request, static DSpark-5 (6 query tokens per step), `v41-flash-latency`.
@@ -93,8 +98,9 @@ Consequences:
   prefill throughput by +2.7% (section 4). Marlin's weight traffic evidently
   scales with the number of 64-row M-tiles it processes, not with the number
   of chunks, so prefill reads are roughly proportional to tokens either way.
-- The access method does not matter; the bandwidth is a host/PCIe ceiling.
-  A DMA prefetch pipeline would not help.
+- Raw transfer bandwidth is a host/PCIe ceiling. This alone does not settle
+  whether staging helps: the later experiment reduces repeated weight reads
+  by copying each packed matrix to GPU memory before a large GEMM.
 - Fewer, faster all-reduces do help: 88 per step, and every one of them is a
   synchronisation point that exposes the straggler rank.
 
@@ -185,7 +191,13 @@ The perplexity value moves between identical servers (2.6–3.0 across the
 [optimization report](../benchmarks/results/2026-09-14-v41-optimization.md#correctness-checks-and-evidence-limits)
 for the open question about run-to-run variance.
 
-## 6. What to run
+## 6. Recommendations from this profile
+
+**Superseded by the [follow-up measurements](../benchmarks/results/2026-09-15-staging-and-batching.md):**
+use `v41-flash-fast` for short requests, `v41-flash-balanced` for longer
+prompts, and `v41-flash-batch` for aggregate output. The recommendations below
+record what was supported before exact staging and fixed-KV tuning were tested.
+
 
 - **Interactive text:** keep `v41-flash-latency`. None of the variants tried
   beat it on single-stream or eight-stream code/prose output; HostAR adds

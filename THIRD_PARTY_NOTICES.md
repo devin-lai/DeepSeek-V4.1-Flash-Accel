@@ -18,3 +18,9 @@ Model weights and third-party packages are downloaded separately. Consult
 the [DeepSeek-V4.1-Flash model license](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/blob/main/LICENSE),
 [DeepGEMM](https://github.com/deepseek-ai/DeepGEMM), and
 [PyTorch](https://github.com/pytorch/pytorch) for their own terms and attribution.
+
+The optional GSM8K regression harness uses the separately downloaded test set
+from [OpenAI's grade-school-math repository](https://github.com/openai/grade-school-math),
+released under its [MIT license](https://github.com/openai/grade-school-math/blob/master/LICENSE)
+(Copyright 2021 OpenAI). Saved evaluation artifacts record row IDs, question
+hashes, expected numbers and model outputs; they do not bundle the test set.

@@ -7,9 +7,9 @@ import argparse
 import json
 import math
 import os
-from pathlib import Path
 import subprocess
 import uuid
+from pathlib import Path
 
 CASES = {
     "c1_1k_128": (1024, 128, 4, 1),
@@ -22,6 +22,9 @@ CASES.update(
     {
         "interactive_c1_256": (0, 256, 8, 1),
         "interactive_c8_256": (0, 256, 8, 8),
+        "c64_1k_128": (1024, 128, 128, 64),
+        "c128_1k_128": (1024, 128, 256, 128),
+        "prefill_c1_16k_1": (16384, 1, 4, 1),
     }
 )
 

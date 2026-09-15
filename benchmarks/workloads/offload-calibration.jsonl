@@ -1,0 +1,8 @@
+{"prompt":"Implement a bounded asynchronous queue in Python using asyncio.Condition, including put, get, close, and graceful handling of waiting consumers. Explain your invariants and provide examples.","output_tokens":256}
+{"prompt":"Write a Rust parser for a simple key=value configuration format with comments, escaped strings, and duplicate key detection. Include an error type with line numbers and several examples.","output_tokens":256}
+{"prompt":"Implement a JavaScript function to merge overlapping calendar intervals while preserving metadata. Explain timezone assumptions, sorting, boundary conditions, and give a complete usage example.","output_tokens":256}
+{"prompt":"Write a Python topological sorter for dependency graphs that reports a concrete cycle if one exists. Include iterative traversal, tests of disconnected components, and a complexity discussion.","output_tokens":256}
+{"prompt":"Explain how a compiler translates a small function into machine code. Show lexical analysis, parsing, types, intermediate representation, optimization, register allocation, and a worked example.","output_tokens":256}
+{"prompt":"用中文解释垃圾回收器如何找到仍然存活的对象。用一个有循环引用的例子介绍根集合、标记、清扫、移动对象和暂停时间，并说明引用计数的区别。","output_tokens":256}
+{"prompt":"Design a procedure to reconcile inventory between three warehouses after delayed and duplicated shipment messages. Explain identifiers, event ordering, conflict reports, and safe recovery with examples.","output_tokens":256}
+{"prompt":"Explain how a web browser lays out and paints a page after its HTML, CSS, and JavaScript arrive. Discuss the DOM, style computation, layout, painting, compositing, and how an animation changes the work.","output_tokens":256}

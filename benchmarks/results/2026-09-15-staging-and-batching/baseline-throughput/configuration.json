@@ -1,0 +1,23 @@
+{
+  "preset": "v41-flash-throughput",
+  "offload_gib_requested_per_rank": 9,
+  "max_sequences": 32,
+  "staging_min_tokens": 0,
+  "speculative_tokens": 0,
+  "gpu_utilization": 0.95,
+  "vllm_commit": "8c1d1c2974ee42757ee2e93cc898932edfd9d265",
+  "torch": "2.13.0+cu130",
+  "flashinfer": "0.6.18.post1",
+  "plugin": "0.3.0",
+  "tp": 8,
+  "expert_parallel": true,
+  "offload_layers": "20-39",
+  "prefill_chunk_tokens": 2048,
+  "max_model_len": 32768,
+  "original_checkpoint": true,
+  "num_preemptions": 0,
+  "launch_command": "vllm serve /data/models/DeepSeek-V4.1-Flash --served-model-name deepseek-v4.1-flash --host 127.0.0.1 --port 8000 --trust-remote-code --tensor-parallel-size 8 --gpu-memory-utilization 0.95 --max-model-len 32768 --max-num-seqs 32 --enable-chunked-prefill --kernel-config {\"enable_flashinfer_autotune\": false, \"moe_backend\": \"marlin\"} --tokenizer-mode deepseek_v41 --enable-expert-parallel --block-size 64 --engram-config {\"cpu_offload\": true} --cpu-offload-gb 9 --cpu-offload-params w13_weight w2_weight --reasoning-parser deepseek_v41 --tool-call-parser deepseek_v41 --enable-auto-tool-choice --language-model-only --max-num-batched-tokens 2048",
+  "available_kv_gib": 0.64,
+  "kv_tokens_reported": 95942,
+  "staging_allocation_fallbacks_reported": 0
+}

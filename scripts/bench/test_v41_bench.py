@@ -2,6 +2,7 @@
 
 import unittest
 
+from gsm8k_compare import extract
 from v41_bench import validate_result
 
 
@@ -30,6 +31,11 @@ class ResultValidationTest(unittest.TestCase):
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 validate_result(self.result | changes, 4, 128)
+
+    def test_quality_scoring_requires_the_explicit_final_answer_marker(self):
+        self.assertIsNone(extract("The intermediate cost is 1200."))
+        self.assertEqual(extract("The cost is $1,200.\n#### $1,200"), "1200")
+        self.assertEqual(extract("#### 3\nCorrection:\n#### -2.5"), "-2.5")
 
 
 if __name__ == "__main__":

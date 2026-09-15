@@ -204,7 +204,7 @@ def check_model(model_dir: str) -> dict:
     return cfg
 
 
-def check_stack(exact_pinned: bool = False) -> None:
+def check_stack(exact_pinned: bool = False, marlin_staging: bool = False) -> None:
     try:
         import torch
         record(OK, "torch", f"{torch.__version__}, cuda {torch.version.cuda}")
@@ -225,9 +225,12 @@ def check_stack(exact_pinned: bool = False) -> None:
         import vllm_dsv41_opt  # noqa: F401
         if exact_pinned:
             from vllm_dsv41_opt.pinned import empty_pinned  # noqa: F401
+        if marlin_staging:
+            from vllm_dsv41_opt.staging import install_marlin_staging  # noqa: F401
         record(OK, "vllm_dsv41_opt", "installed" + (" (exact pinned weights available)" if exact_pinned else ""))
     except ImportError:
-        record(FAIL if exact_pinned else WARN, "vllm_dsv41_opt",
+        record(FAIL if exact_pinned or marlin_staging else WARN, "vllm_dsv41_opt",
+               "install vllm-dsv41-opt >=0.3 for Marlin weight staging" if marlin_staging else
                "install vllm-dsv41-opt >=0.2 for exact pinned weights" if exact_pinned else
                "not installed; stock two-copy offloader will be used (VL-008)")
 
@@ -389,6 +392,8 @@ def main() -> int:
                     help="pinned host GiB for Engram (V4.1: 264 stock, 189 exact)")
     ap.add_argument("--exact-pinned", action="store_true",
                     help="DSV41_EXACT_PINNED=1 is enabled for weight allocation")
+    ap.add_argument("--marlin-staging", action="store_true",
+                    help="large eager Marlin batches stage UVA expert weights")
     ap.add_argument("--numa-bind", action="store_true")
     ap.add_argument("--autotune", action="store_true")
     ap.add_argument("--block-size", type=int, default=0)
@@ -403,7 +408,7 @@ def main() -> int:
     check_host_ram(args.engram_gib, args.offload_gb, args.tp, args.exact_pinned)
     check_numa()
     check_model(args.model)
-    check_stack(args.exact_pinned)
+    check_stack(args.exact_pinned, args.marlin_staging)
     lint_flags(args)
     if args.v41:
         check_v41_patches()
