@@ -1,22 +1,36 @@
 # DeepSeek V4.1 Flash Accel
 
 **Run DeepSeek-V4.1-Flash on eight 32 GB RTX 5090 GPUs.**
+No NVLink required. Checkpoint and quantization preserved.
+
+## Performance highlights
+
+| Metric | Before → After | Gain |
+| --- | ---: | ---: |
+| Single-request output | 69.86 → **74.75 tok/s** | **+7.0%** |
+| Eight-request output | 153.05 → **168.49 tok/s** | **+10.1%** |
+| 64-request batch output | 176.96 → **217.55 tok/s** | **+22.9%** |
+| 8K prefill throughput | 3,004 → **4,078 tok/s** | **+35.7%** |
+
+**Measured on 8× RTX 5090 D, September 15, 2026.** Three-trial means against
+the previous optimized presets on the same server. The first two rows use
+the **fast** preset with 256-token interactive outputs; the last two use
+the **batch** preset with 1K input / 128 output tokens and 8K prefill at
+concurrency 2, respectively. Concurrent output is aggregate throughput;
+prefill counts input + output tokens. Gains use unrounded means.
+[Full results, trial ranges, raw traces and precision checks](benchmarks/results/2026-09-15-staging-and-batching.md).
+
+[Quickstart](#quickstart) · [Choose a preset](#choose-a-serving-preset) · [Benchmarks](#measured-performance) · [How it works](#how-the-optimizations-work) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+
 Tuned vLLM presets, CPU offload, and the patches needed to serve on consumer
-Blackwell over PCIe, with an OpenAI-compatible API. No NVLink required.
+Blackwell over PCIe, with an OpenAI-compatible API.
+An independent community project for [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash),
+built on [vLLM](https://github.com/vllm-project/vllm),
+[FlashInfer](https://github.com/flashinfer-ai/flashinfer), and
+[DeepGEMM](https://github.com/deepseek-ai/DeepGEMM). Experimental; not affiliated
+with or endorsed by DeepSeek.
 
-## Further optimization: 2026-09-15
-
-Three-trial comparisons against the previous optimized presets on the same
-8× RTX 5090 D server, with the checkpoint and quantization preserved:
-
-| Workload | Previous optimized preset | New preset | Change |
-| --- | ---: | ---: | ---: |
-| Short interactive, concurrency 1 | 69.86 output tok/s | **74.75** · fast | **+7.0%** |
-| Short interactive, concurrency 8 | 153.05 output tok/s | **168.49** · fast | **+10.1%** |
-| 1K input / 128 output, concurrency 64 | 176.96 output tok/s | **217.55** · batch | **+22.9%** |
-| 8K prefill, concurrency 2 | 3,004.34 total tok/s | **4,077.99** · batch | **+35.7%** |
-
-Choose a preset for the workload:
+## Choose a serving preset
 
 - **[`v41-flash-fast`](deploy/presets/v41-flash-fast.env):** short interactive
   requests. More expert weights stay on GPU, with eight active sequences and
@@ -34,53 +48,12 @@ The fast and batch configurations each matched the baseline's **126/128**
 on a fixed GSM8K subset and passed 32K / eight-concurrent-8K cache probes.
 Staging passed fixed-input bitwise kernel checks. These are bounded regression
 checks, not full-model quality equivalence or a long-duration load test.
-[Full results, raw traces, precision checks and rejected approaches](benchmarks/results/2026-09-15-staging-and-batching.md).
-
-## Earlier allocator and DSpark results
-
-| **1.93× single-request generation** | **55% higher batch throughput** | **42% less shared host RAM** |
-| :--- | :--- | :--- |
-| **33.6 → 65.0 tok/s** | **115.0 → 178.2 tok/s** | **453 → 264 GiB** |
-| Synthetic 1K input / 128 output, one active request | Same workload, 32 concurrent requests | Approximately **189 GiB recovered** |
-| Latency preset | Throughput preset | Throughput preset |
-
-On the included code and prose prompts, single-request output rises from
-**39.8 to 71.4 tok/s (+79.4%)** with the latency preset. The throughput preset
-also raises **8K prefill throughput by 23.8%**, from 2,430 to 3,008 total tok/s.
-
-**Results shipped in [`20eeea0`](https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel/commit/20eeea06b6a23f0703eeb5b9a29855e39a7c8a46).**
-Speed figures are three-trial means against this project's previous
-`v41-flash` preset, which already includes CUDA graphs and offload patches.
-Same host, prompts, seeds, checkpoint, and quantization; **936 timed requests,
-zero failures**. Shared RAM is a startup measurement, not total required RAM.
-[Full results and trial ranges](benchmarks/results/2026-09-14-v41-optimization.md) ·
-[Raw comparison data](benchmarks/results/2026-09-14-v41-optimization/comparison.json).
-
-[Quickstart](#quickstart) · [Benchmarks](#measured-performance) · [How it works](#how-the-optimizations-work) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
-
-## Earlier implementation changes
-
-- **Recover host RAM lost to allocator padding.** Page-rounded pinned weight
-  buffers replace power-of-two allocations, recovering about **164 GiB at the
-  same expert offload budget**. The final presets keep more experts on GPU,
-  bringing shared host RAM to 279 GiB for latency or 264 GiB for throughput.
-- **Enable five-token speculative decoding on SM120.** The latency preset
-  uses the checkpoint's DSpark drafter with static verification and smaller
-  CUDA graph captures. Adaptive verification is unsupported by this backend.
-- **Keep more weights on GPU and serve larger batches.** The throughput
-  preset lowers expert offload from 12 to 9 GiB/rank and allows 32 active
-  sequences, delivering **178.2 output tok/s** on the concurrent workload.
 
 The earlier **[`v41-flash-latency`](deploy/presets/v41-flash-latency.env)** and
 **[`v41-flash-throughput`](deploy/presets/v41-flash-throughput.env)** presets
-remain available as reproduction baselines. All new presets build on the
+remain available as [reproduction baselines](#earlier-allocator-and-dspark-results).
+All new presets build on the
 [CUDA graph fixes and decoder-only expert offload](#how-the-optimizations-work).
-
-An independent community project for [DeepSeek-V4.1-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash),
-built on [vLLM](https://github.com/vllm-project/vllm),
-[FlashInfer](https://github.com/flashinfer-ai/flashinfer), and
-[DeepGEMM](https://github.com/deepseek-ai/DeepGEMM). Experimental; not affiliated
-with or endorsed by DeepSeek.
 
 ## Supported configuration
 
@@ -229,6 +202,17 @@ are the source for quantitative claims.
 
 ## Measured performance
 
+The [performance highlights](#performance-highlights) summarize the latest
+fast and batch presets. See the [September 15 report](benchmarks/results/2026-09-15-staging-and-batching.md)
+for their full latency, throughput, memory, and quality results.
+
+### Earlier allocator and DSpark results
+
+**Results shipped in [`20eeea0`](https://github.com/devin-lai/DeepSeek-V4.1-Flash-Accel/commit/20eeea06b6a23f0703eeb5b9a29855e39a7c8a46).**
+Same host, prompts, seeds, checkpoint, and quantization; **936 timed requests,
+zero failures**. These September 14 measurements use a separate baseline
+from the latest comparison above.
+
 **Text serving on 8× RTX 5090, three-trial means.** Output tok/s unless marked
 total; parentheses show the change from the previous `v41-flash` graph-enabled
 preset. Percentages use unrounded means. `c1`, `c8`, and `c32` mean 1, 8, and
@@ -260,6 +244,9 @@ generation speed.
 | Shared host RAM at startup | Previous preset | Latency preset | Throughput preset |
 | --- | ---: | ---: | ---: |
 | Observed | 453 GiB | **279 GiB** | **264 GiB** |
+
+The throughput preset recovers approximately **189 GiB (42%)** of shared
+host RAM. [Raw comparison data](benchmarks/results/2026-09-14-v41-optimization/comparison.json).
 
 The machine has **503 GiB installed**. The latency preset also completed
 startup, benchmarks, and cache probes under a **384 GiB cgroup limit** with
